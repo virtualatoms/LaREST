@@ -5,7 +5,7 @@ from enum import IntEnum
 from pathlib import Path
 
 from larest.constants import PIPELINE_SECTIONS, THERMODYNAMIC_PARAMS
-from larest.parsers import parse_best_rdkit_conformer
+from larest.rdkit import parse_best_rdkit_conformer
 
 logger = logging.getLogger(__name__)
 
