@@ -26,7 +26,7 @@ larest -o <output_dir> -c <config_dir>
 qsub pipeline.sh
 ```
 
-The `-c` flag points to a directory containing `config.toml`. Settings in `config.toml` override `config/defaults.toml`.
+The `-c` flag points to a directory containing `config.toml`. This file must be complete — there is no defaults merging. See `config/reference.toml` for documentation of all available options.
 
 ## Linting
 
@@ -48,29 +48,28 @@ Each molecule passes through up to four stages, controlled by `[steps]` in confi
 3. **censo** — DFT refinement of CREST ensemble via CENSO (4 sub-stages: `0_PRESCREENING` → `1_SCREENING` → `2_OPTIMIZATION` → `3_REFINEMENT`), using ORCA as the QM backend
 4. **crest_entropy** — Conformational entropy via CREST entropy mode; adds `censo_corrected` result by applying CREST entropy correction to `3_REFINEMENT` results
 
-### Molecule class hierarchy (`src/larest/base.py`)
+### Molecule dataclasses (`src/larest/data.py`)
 
-All molecule types inherit from `LarestMol` (abstract base):
-- `Monomer` — the lactone monomer; owns `Initiator` and a list of `Polymer` instances
-- `Polymer` — polymer chain at a given length; SMILES is built on-the-fly via `build_polymer()` in `chem.py`
-- `Initiator` — the initiating alcohol (ROR reactions only)
-
-Each molecule stores results as `dict[section, dict[param, float|None]]` where sections are `rdkit`, `crest`, `0_PRESCREENING`, ..., `3_REFINEMENT`, `censo_corrected` and params are `H`, `S`, `G`.
+Molecules are simple dataclasses with no shared base class:
+- `Monomer` — the lactone monomer (`smiles: str`)
+- `Polymer` — polymer chain at a given length (`smiles`, `monomer_smiles`, `length`); SMILES is built on-the-fly via `build_polymer()` in `chem.py`
+- `Initiator` — the initiating alcohol for ROR reactions (`smiles: str`)
+- `MolResults` — holds results for one molecule: `smiles` and `sections: dict[str, dict[str, float|None]]` where sections are `rdkit`, `crest`, `0_PRESCREENING`, ..., `3_REFINEMENT`, `censo_corrected` and params are `H`, `S`, `G`
 
 ### Checkpointing (`src/larest/checkpoint.py`)
 
-On startup, each `LarestMol` calls `restore_results()` which walks through result files in order and sets `_pipeline_stage` to the first missing stage. This lets interrupted runs resume from where they left off without re-running earlier stages.
+At the start of each molecule's run, `MolPipeline.run()` calls `restore_results()` which walks through result files in order and returns the first missing `PipelineStage`. This lets interrupted runs resume from where they left off without re-running earlier stages.
 
 ### Configuration system
 
-`get_config()` in `setup.py` deep-merges `defaults.toml` (all options) with the user's `config.toml` (overrides only). Config keys are passed directly as CLI flags to external tools via `parse_command_args()` in `parsers.py` — a `true` boolean value becomes `--flag`, a scalar becomes `--key value`, `false` is omitted.
+`get_config()` in `setup.py` loads `config.toml` directly (no defaults merging). Config keys are passed directly as CLI flags to external tools via `parse_command_args()` in `parsers.py` — a `true` boolean value becomes `--flag`, a scalar becomes `--key value`, `false` is omitted.
 
 ### Reaction types
 
 - **RER** (Ring Equilibrium Reaction) — polymer chain only, no initiator contribution; requires `lengths >= 2`
 - **ROR** (Ring-Opening polymerization Reaction) — initiator is consumed; requires `lengths >= 1`
 
-Final thermodynamics are computed in `Monomer.compile_results()`:
+Final thermodynamics are computed in `compile_results()` in `main.py`:
 `delta_param = (polymer_param - n * monomer_param - initiator_param) / n`
 
 ### Output structure

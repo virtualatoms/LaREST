@@ -45,15 +45,11 @@ PIPELINE_SECTIONS: list[str] = [
 ENTHALPY_PLOTTING_SECTIONS: list[str] = [
     "rdkit",
     "crest",
-    # "0_PRESCREENING",
-    # "1_SCREENING",
-    # "2_OPTIMIZATION",
     "3_REFINEMENT",
 ]
 ENTROPY_PLOTTING_SECTIONS: list[str] = [
     "rdkit",
     "crest",
-    # "crest_corrected",
     "3_REFINEMENT",
     "censo_corrected",
 ]

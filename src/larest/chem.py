@@ -106,24 +106,19 @@ def get_polymer_unit(
     # NOTE: output for molecules with >1 ring-opening functional group
     # is deterministic but not yet customisable
 
+    # convert monomer/initiator smiles and front/back dummies to RDKit Mol/Atoms
+    logger.debug(f"Getting {mol_type} unit for polymer construction (SMILES: {smiles})")
+    logger.debug(f"Front dummy: {front_dummy}, Back dummy {back_dummy}")
     match mol_type:
         case "monomer":
             functional_groups: list[Mol] = [
                 MolFromSmarts(fg_smarts) for fg_smarts in MONOMER_GROUPS.values()
             ]
+            mol: Mol = MolFromSmiles(smiles)
         case "initiator":
             functional_groups: list[Mol] = [
                 MolFromSmarts(fg_smarts) for fg_smarts in INITIATOR_GROUPS.values()
             ]
-
-    # convert monomer/initiator smiles and front/back dummies to RDKit Mol/Atoms
-    logger.debug(f"Getting {mol_type} unit for polymer construction (SMILES: {smiles})")
-    logger.debug(f"Front dummy: {front_dummy}, Back dummy {back_dummy}")
-    # creating the RDKit mol object
-    match mol_type:
-        case "monomer":
-            mol: Mol = MolFromSmiles(smiles)
-        case "initiator":
             # need to add Hs to break O-H bond
             mol: Mol = AddHs(
                 mol=MolFromSmiles(smiles),

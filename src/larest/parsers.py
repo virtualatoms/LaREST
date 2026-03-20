@@ -17,32 +17,29 @@ from larest.constants import (
 logger = logging.getLogger(__name__)
 
 
-class LarestArgumentParser(argparse.ArgumentParser):
-    def __init__(self) -> None:
-        super().__init__(description="LaREST")
-        self._setup()
-
-    def _setup(self) -> None:
-        self.add_argument(
-            "-o",
-            "--output",
-            type=str,
-            default="./output",
-            help="Output directory for Step 1",
-        )
-        self.add_argument(
-            "-c",
-            "--config",
-            type=str,
-            default="./config",
-            help="Config directory for Step 1",
-        )
-        self.add_argument(
-            "-v",
-            "--verbose",
-            help="increase output verbosity",
-            action="store_true",
-        )
+def make_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="LaREST")
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="./output",
+        help="Output directory",
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=str,
+        default="./config",
+        help="Config directory",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        help="increase output verbosity",
+        action="store_true",
+    )
+    return parser
 
 
 def parse_command_args(
@@ -61,10 +58,8 @@ def parse_command_args(
     for k, v in cfg.items():
         if v is False:
             continue
-        if v is True:
-            args.append(f"--{k}")
-        else:
-            args.append(f"--{k}")
+        args.append(f"--{k}")
+        if v is not True:
             args.append(str(v))
     logger.debug(f"Returning {sub_config} args: {args}")
     return args

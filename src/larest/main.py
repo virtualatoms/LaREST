@@ -11,7 +11,7 @@ from larest.chem import build_polymer
 from larest.constants import THERMODYNAMIC_PARAMS
 from larest.data import Initiator, MolResults, Monomer, Polymer
 from larest.output import create_dir, slugify
-from larest.parsers import LarestArgumentParser
+from larest.parsers import make_parser
 from larest.pipeline import MolPipeline
 from larest.setup import get_config, get_logger
 
@@ -24,6 +24,9 @@ def compile_results(
     output_dir: Path,
     reaction_type: str,
 ) -> None:
+    if reaction_type == "ROR" and initiator_results is None:
+        raise ValueError(f"Initiator results are required for ROR reactions but are missing (monomer: {monomer_smiles})")
+
     summary_dir = output_dir / "Monomer" / slugify(monomer_smiles) / "summary"
     create_dir(summary_dir)
 
@@ -40,9 +43,7 @@ def compile_results(
                 summary[f"polymer_{param}"].append(poly_results.sections[section][param])
                 summary[f"monomer_{param}"].append(monomer_results.sections[section][param])
                 summary[f"initiator_{param}"].append(
-                    initiator_results.sections[section][param]
-                    if reaction_type == "ROR" and initiator_results is not None
-                    else 0,
+                    initiator_results.sections[section][param] if reaction_type == "ROR" else 0,
                 )
 
         summary_df = pd.DataFrame(
@@ -134,8 +135,7 @@ def main(
 
 def entry_point() -> None:
     """Entry point of the LaREST package script"""
-    parser: LarestArgumentParser = LarestArgumentParser()
-    args: Namespace = parser.parse_args()
+    args: Namespace = make_parser().parse_args()
 
     try:
         config: dict[str, Any] = get_config(args=args)

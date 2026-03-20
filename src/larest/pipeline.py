@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import subprocess
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -23,7 +24,7 @@ from rdkit.Chem.rdmolfiles import (
 )
 from rdkit.Chem.rdmolops import AddHs
 
-from larest.checkpoint import PipelineStage, restore_results
+from larest.checkpoint import PipelineStage, apply_entropy_correction, restore_results
 from larest.chem import get_mol
 from larest.constants import KCALMOL_TO_JMOL, THERMODYNAMIC_PARAMS
 from larest.data import Initiator, MolResults, Monomer, Polymer
@@ -56,6 +57,7 @@ class MolPipeline:
         self.config = config
         self._logger = logging.getLogger(type(mol).__name__)
 
+    @cached_property
     def _dir_path(self) -> Path:
         match self.mol:
             case Polymer():
@@ -75,7 +77,7 @@ class MolPipeline:
         """Run the LaREST pipeline for the molecule."""
         try:
             self._setup()
-            results, stage = restore_results(self._dir_path())
+            results, stage = restore_results(self._dir_path)
 
             if self.config["steps"]["rdkit"] and stage <= PipelineStage.RDKIT:
                 results |= self._run_rdkit()
@@ -84,7 +86,9 @@ class MolPipeline:
             if self.config["steps"]["censo"] and stage <= PipelineStage.CENSO:
                 results |= self._run_censo()
             if self.config["steps"]["crest_entropy"] and stage <= PipelineStage.CREST_ENTROPY:
-                results |= self._run_crest_entropy(results)
+                crest_entropy_results = self._run_crest_entropy()
+                if self.config["steps"]["censo"]:
+                    results |= apply_entropy_correction(results["3_REFINEMENT"], crest_entropy_results)
 
             self._write_final_results(results)
             self._cleanup()
@@ -101,7 +105,7 @@ class MolPipeline:
         remove_dir(self.output_dir / "temp")
 
     def _run_rdkit(self) -> dict[str, dict[str, float | None]]:
-        dir_path = self._dir_path()
+        dir_path = self._dir_path
         rdkit_dir = dir_path / "rdkit"
         create_dir(rdkit_dir)
 
@@ -167,6 +171,12 @@ class MolPipeline:
         self._logger.debug("Computing thermodynamic parameters of conformers using xTB")
         xtb_default_args: list[str] = parse_command_args(sub_config=["xtb"], config=self.config)
 
+        xtb_base_dir = dir_path / "xtb" / "rdkit"
+        xtb_results: dict[str, list[float | None]] = {
+            "conformer_id": [],
+            **{param: [] for param in THERMODYNAMIC_PARAMS},
+        }
+
         self._logger.debug(f"Getting conformer coordinates from {sdf_file}")
         with open(sdf_file, "rb") as sdfstream:
             mol_supplier: ForwardSDMolSupplier = ForwardSDMolSupplier(
@@ -191,7 +201,7 @@ class MolPipeline:
                     )
                     raise
 
-                xtb_dir = dir_path / "xtb" / "rdkit" / f"conformer_{conformer_id}"
+                xtb_dir = xtb_base_dir / f"conformer_{conformer_id}"
                 create_dir(xtb_dir)
 
                 xtb_output_file = xtb_dir / f"conformer_{conformer_id}.txt"
@@ -213,35 +223,24 @@ class MolPipeline:
                         )
                 except Exception:
                     self._logger.exception(f"Failed to run xTB for conformer {conformer_id}")
+                    continue
 
-        self._logger.debug("Finished running xTB on conformers")
-        self._logger.debug("Compiling results of xTB computations")
+                try:
+                    xtb_output = parse_xtb_output(
+                        xtb_output_file=xtb_output_file,
+                        temperature=self.config["xtb"]["etemp"],
+                    )
+                except Exception:
+                    self._logger.exception(
+                        f"Failed to parse xTB results for conformer {conformer_id}",
+                    )
+                    continue
 
-        xtb_results: dict[str, list[float | None]] = {"conformer_id": []}
-        xtb_results |= {param: [] for param in THERMODYNAMIC_PARAMS}
-
-        xtb_dir = dir_path / "xtb" / "rdkit"
-        conformer_dirs: list[Path] = [d for d in xtb_dir.iterdir() if d.is_dir()]
-        self._logger.debug(f"Searching conformer dirs {conformer_dirs}")
-
-        for conformer_dir in conformer_dirs:
-            xtb_output_file = conformer_dir / f"{conformer_dir.name}.txt"
-            try:
-                xtb_output = parse_xtb_output(
-                    xtb_output_file=xtb_output_file,
-                    temperature=self.config["xtb"]["etemp"],
-                )
-            except Exception:
-                self._logger.exception(
-                    f"Failed to parse xtb results for conformer in {conformer_dir.name}",
-                )
-                continue
-            else:
-                xtb_results["conformer_id"].append(int(conformer_dir.name.split("_")[1]))
+                xtb_results["conformer_id"].append(conformer_id)
                 for param in THERMODYNAMIC_PARAMS:
                     xtb_results[param].append(xtb_output[param])
 
-        xtb_results_file = xtb_dir / "results.csv"
+        xtb_results_file = xtb_base_dir / "results.csv"
         self._logger.debug(f"Writing results to {xtb_results_file}")
 
         xtb_results_df = pd.DataFrame(xtb_results, dtype=np.float64).sort_values("G")
@@ -252,7 +251,7 @@ class MolPipeline:
         return {"rdkit": best_rdkit_conformer_results}
 
     def _run_crest_confgen(self) -> dict[str, dict[str, float | None]]:
-        dir_path = self._dir_path()
+        dir_path = self._dir_path
         crest_dir = dir_path / "crest_confgen"
         create_dir(crest_dir)
 
@@ -302,7 +301,7 @@ class MolPipeline:
         return {}
 
     def _run_censo(self) -> dict[str, dict[str, float | None]]:
-        dir_path = self._dir_path()
+        dir_path = self._dir_path
         temp_dir = self.output_dir / "temp"
         create_censorc(config=self.config, temp_dir=temp_dir)
 
@@ -384,11 +383,8 @@ class MolPipeline:
 
         return xtb_results
 
-    def _run_crest_entropy(
-        self,
-        current_results: dict[str, dict[str, float | None]],
-    ) -> dict[str, dict[str, float | None]]:
-        dir_path = self._dir_path()
+    def _run_crest_entropy(self) -> dict[str, float | None]:
+        dir_path = self._dir_path
         censo_dir = dir_path / "censo"
         best_censo_conformer_xyz_file = censo_dir / "censo_best.xyz"
 
@@ -437,19 +433,10 @@ class MolPipeline:
         with open(crest_results_file, "w") as fstream:
             json.dump(crest_results, fstream, sort_keys=True, allow_nan=True, indent=4)
 
-        if not self.config["steps"]["censo"]:
-            return {}
-
-        censo_corrected_results = current_results["3_REFINEMENT"].copy()
-        if censo_corrected_results["S"] is None or crest_results["S_total"] is None:
-            raise ValueError(
-                "Failed to apply CREST entropy correction to CENSO results",
-            )
-        censo_corrected_results["S"] += crest_results["S_total"]
-        return {"censo_corrected": censo_corrected_results}
+        return crest_results
 
     def _write_final_results(self, results: dict[str, dict[str, float | None]]) -> None:
-        results_file = self._dir_path() / "results.json"
+        results_file = self._dir_path / "results.json"
         self._logger.debug(f"Writing final results to {results_file}")
         with open(results_file, "w") as fstream:
             json.dump(results, fstream, sort_keys=True, indent=4, allow_nan=True)

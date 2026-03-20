@@ -82,12 +82,17 @@ def _parse_rdkit(results: dict, path: Path) -> None:
     results.update({"rdkit": best})
 
 
+def apply_entropy_correction(
+    refinement_results: dict[str, float | None],
+    crest_entropy_results: dict[str, float | None],
+) -> dict[str, dict[str, float | None]]:
+    if refinement_results["S"] is None or crest_entropy_results["S_total"] is None:
+        raise ValueError("Failed to apply CREST entropy correction to CENSO results")
+    corrected = refinement_results.copy()
+    corrected["S"] += crest_entropy_results["S_total"]
+    return {"censo_corrected": corrected}
+
+
 def _parse_crest_entropy(results: dict, path: Path) -> None:
     crest_entropy_results: dict[str, float | None] = json.loads(path.read_text())
-    censo_corrected_results = results["3_REFINEMENT"].copy()
-    if censo_corrected_results["S"] is None or crest_entropy_results["S_total"] is None:
-        raise ValueError(
-            "Failed to apply CREST entropy correction to CENSO results",
-        )
-    censo_corrected_results["S"] += crest_entropy_results["S_total"]
-    results.update({"censo_corrected": censo_corrected_results})
+    results.update(apply_entropy_correction(results["3_REFINEMENT"], crest_entropy_results))
