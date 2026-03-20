@@ -1,5 +1,5 @@
+import logging
 from argparse import Namespace
-from logging import Logger
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +14,8 @@ from larest.output import create_dir, slugify
 from larest.parsers import make_parser
 from larest.pipeline import MolPipeline
 from larest.setup import get_config, get_logger
+
+logger = logging.getLogger(__name__)
 
 
 def compile_results(
@@ -65,7 +67,6 @@ def compile_results(
 def main(
     args: Namespace,
     config: dict[str, Any],
-    logger: Logger,
 ) -> None:
     output_dir = Path(args.output)
     reaction_type = config["reaction"]["type"]
@@ -143,16 +144,12 @@ def entry_point() -> None:
         raise SystemExit(1) from err
 
     try:
-        logger: Logger = get_logger(
-            name=__name__,
-            args=args,
-            config=config,
-        )
+        get_logger(name=__name__, args=args, config=config)
     except Exception as err:
         raise SystemExit(1) from err
-    else:
-        logger.info("LaREST Initialised")
-        for config_key, config_value in config.items():
-            logger.debug(f"{config_key} config:\n{config_value}")
 
-    main(args=args, config=config, logger=logger)
+    logger.info("LaREST Initialised")
+    for config_key, config_value in config.items():
+        logger.debug(f"{config_key} config:\n{config_value}")
+
+    main(args=args, config=config)

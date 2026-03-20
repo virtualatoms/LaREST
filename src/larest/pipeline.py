@@ -44,6 +44,8 @@ if TYPE_CHECKING:
     from rdkit.Chem.rdchem import Mol
     from rdkit.ForceField.rdForceField import MMFFMolProperties
 
+logger = logging.getLogger(__name__)
+
 
 class MolPipeline:
     def __init__(
@@ -55,7 +57,6 @@ class MolPipeline:
         self.mol = mol
         self.output_dir = output_dir
         self.config = config
-        self._logger = logging.getLogger(type(mol).__name__)
 
     @cached_property
     def _dir_path(self) -> Path:
@@ -93,7 +94,7 @@ class MolPipeline:
             self._write_final_results(results)
             self._cleanup()
         except Exception:
-            self._logger.exception("Error encountered within pipeline, exiting...")
+            logger.exception("Error encountered within pipeline, exiting...")
             raise
 
         return MolResults(smiles=self.mol.smiles, sections=results)
@@ -109,11 +110,11 @@ class MolPipeline:
         rdkit_dir = dir_path / "rdkit"
         create_dir(rdkit_dir)
 
-        self._logger.debug("Generating conformers and computing energies using RDKit")
+        logger.debug("Generating conformers and computing energies using RDKit")
         rdkit_mol: Mol = AddHs(get_mol(StandardizeSmiles(self.mol.smiles)))
 
         n_conformers: int = self.config["rdkit"]["n_conformers"]
-        self._logger.debug(f"Generating {n_conformers} conformers")
+        logger.debug(f"Generating {n_conformers} conformers")
         conformer_ids: list[int] = EmbedMultipleConfs(
             rdkit_mol,
             n_conformers,
@@ -123,7 +124,7 @@ class MolPipeline:
             numThreads=self.config["rdkit"]["n_cores"],
         )
 
-        self._logger.debug(f"Optimising the {n_conformers} conformers")
+        logger.debug(f"Optimising the {n_conformers} conformers")
         MMFFOptimizeMoleculeConfs(
             rdkit_mol,
             numThreads=self.config["rdkit"]["n_cores"],
@@ -131,14 +132,14 @@ class MolPipeline:
             mmffVariant=self.config["rdkit"]["mmff"],
         )
 
-        self._logger.debug("Computing molecular properties for MMFF")
+        logger.debug("Computing molecular properties for MMFF")
         mp: MMFFMolProperties = MMFFGetMoleculeProperties(
             rdkit_mol,
             mmffVariant=self.config["rdkit"]["mmff"],
             mmffVerbosity=0,
         )
 
-        self._logger.debug(f"Computing energies for the {n_conformers} conformers")
+        logger.debug(f"Computing energies for the {n_conformers} conformers")
         conformer_energies: list[tuple[int, float]] = sorted(
             [
                 (
@@ -151,11 +152,11 @@ class MolPipeline:
             key=lambda x: x[1],
         )
 
-        self._logger.debug(f"Aligning the {n_conformers} conformers by their geometries")
+        logger.debug(f"Aligning the {n_conformers} conformers by their geometries")
         AlignMolConformers(rdkit_mol, maxIters=self.config["rdkit"]["align_iters"])
 
         sdf_file = rdkit_dir / "conformers.sdf"
-        self._logger.debug(f"Writing conformers and their energies to {sdf_file}")
+        logger.debug(f"Writing conformers and their energies to {sdf_file}")
         try:
             with open(sdf_file, "w") as fstream:
                 writer: SDWriter = SDWriter(fstream)
@@ -165,10 +166,10 @@ class MolPipeline:
                     writer.write(rdkit_mol, confId=cid)
                 writer.close()
         except Exception:
-            self._logger.exception(f"Failed to write RDKit conformers to {sdf_file}")
+            logger.exception(f"Failed to write RDKit conformers to {sdf_file}")
             raise
 
-        self._logger.debug("Computing thermodynamic parameters of conformers using xTB")
+        logger.debug("Computing thermodynamic parameters of conformers using xTB")
         xtb_default_args: list[str] = parse_command_args(sub_config=["xtb"], config=self.config)
 
         xtb_base_dir = dir_path / "xtb" / "rdkit"
@@ -177,7 +178,7 @@ class MolPipeline:
             **{param: [] for param in THERMODYNAMIC_PARAMS},
         }
 
-        self._logger.debug(f"Getting conformer coordinates from {sdf_file}")
+        logger.debug(f"Getting conformer coordinates from {sdf_file}")
         with open(sdf_file, "rb") as sdfstream:
             mol_supplier: ForwardSDMolSupplier = ForwardSDMolSupplier(
                 fileobj=sdfstream,
@@ -196,7 +197,7 @@ class MolPipeline:
                         precision=self.config["rdkit"]["precision"],
                     )
                 except Exception:
-                    self._logger.exception(
+                    logger.exception(
                         f"Failed to write conformer coordinates to {conformer_xyz_file}",
                     )
                     raise
@@ -222,7 +223,7 @@ class MolPipeline:
                             check=True,
                         )
                 except Exception:
-                    self._logger.exception(f"Failed to run xTB for conformer {conformer_id}")
+                    logger.exception(f"Failed to run xTB for conformer {conformer_id}")
                     continue
 
                 try:
@@ -231,7 +232,7 @@ class MolPipeline:
                         temperature=self.config["xtb"]["etemp"],
                     )
                 except Exception:
-                    self._logger.exception(
+                    logger.exception(
                         f"Failed to parse xTB results for conformer {conformer_id}",
                     )
                     continue
@@ -241,7 +242,7 @@ class MolPipeline:
                     xtb_results[param].append(xtb_output[param])
 
         xtb_results_file = xtb_base_dir / "results.csv"
-        self._logger.debug(f"Writing results to {xtb_results_file}")
+        logger.debug(f"Writing results to {xtb_results_file}")
 
         xtb_results_df = pd.DataFrame(xtb_results, dtype=np.float64).sort_values("G")
         xtb_results_df.to_csv(xtb_results_file, header=True, index=False)
@@ -285,7 +286,7 @@ class MolPipeline:
                     check=True,
                 )
         except Exception:
-            self._logger.exception("Failed to run CREST confgen")
+            logger.exception("Failed to run CREST confgen")
             raise
 
         if self.config["steps"]["xtb"]:
@@ -330,7 +331,7 @@ class MolPipeline:
                     check=True,
                 )
         except Exception:
-            self._logger.exception("Failed to run CENSO")
+            logger.exception("Failed to run CENSO")
             raise
 
         censo_results: dict[str, dict[str, float | None]] = parse_censo_output(
@@ -339,7 +340,7 @@ class MolPipeline:
         )
 
         censo_results_file = censo_dir / "results.json"
-        self._logger.debug(f"Writing results to {censo_results_file}")
+        logger.debug(f"Writing results to {censo_results_file}")
         with open(censo_results_file, "w") as fstream:
             json.dump(censo_results, fstream, sort_keys=True, allow_nan=True, indent=4)
 
@@ -364,7 +365,7 @@ class MolPipeline:
                     check=True,
                 )
         except Exception:
-            self._logger.exception("Failed to run xTB")
+            logger.exception("Failed to run xTB")
             raise
 
         try:
@@ -373,11 +374,11 @@ class MolPipeline:
                 temperature=self.config["xtb"]["etemp"],
             )
         except Exception:
-            self._logger.exception(f"Failed to parse xtb results in file {xtb_output_file}")
+            logger.exception(f"Failed to parse xtb results in file {xtb_output_file}")
             raise
 
         xtb_results_file = xtb_dir / "results.json"
-        self._logger.debug(f"Writing results to {xtb_results_file}")
+        logger.debug(f"Writing results to {xtb_results_file}")
         with open(xtb_results_file, "w") as fstream:
             json.dump(xtb_results, fstream, sort_keys=True, allow_nan=True, indent=4)
 
@@ -421,7 +422,7 @@ class MolPipeline:
                     check=True,
                 )
         except Exception:
-            self._logger.exception("Failed to run CREST entropy")
+            logger.exception("Failed to run CREST entropy")
             raise
 
         crest_results: dict[str, float | None] = parse_crest_entropy_output(
@@ -429,7 +430,7 @@ class MolPipeline:
         )
 
         crest_results_file = crest_dir / "results.json"
-        self._logger.debug(f"Writing results to {crest_results_file}")
+        logger.debug(f"Writing results to {crest_results_file}")
         with open(crest_results_file, "w") as fstream:
             json.dump(crest_results, fstream, sort_keys=True, allow_nan=True, indent=4)
 
@@ -437,6 +438,6 @@ class MolPipeline:
 
     def _write_final_results(self, results: dict[str, dict[str, float | None]]) -> None:
         results_file = self._dir_path / "results.json"
-        self._logger.debug(f"Writing final results to {results_file}")
+        logger.debug(f"Writing final results to {results_file}")
         with open(results_file, "w") as fstream:
             json.dump(results, fstream, sort_keys=True, indent=4, allow_nan=True)
