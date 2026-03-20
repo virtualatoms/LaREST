@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from larest.constants import HARTTREE_TO_JMOL, THERMODYNAMIC_PARAMS
-from larest.parsers import parse_command_args
+from larest.setup import parse_command_args
 
 logger = logging.getLogger(__name__)
 
@@ -21,27 +21,19 @@ def run_xtb(xtb_input_file: Path, xtb_dir: Path, config: dict[str, Any]) -> dict
     ] + parse_command_args(sub_config=["xtb"], config=config)
 
     xtb_output_file = xtb_dir / "xtb.txt"
-    try:
-        with open(xtb_output_file, "w") as fstream:
-            subprocess.run(
-                xtb_args,
-                stdout=fstream,
-                stderr=subprocess.STDOUT,
-                cwd=xtb_dir,
-                check=True,
-            )
-    except Exception:
-        logger.exception("Failed to run xTB")
-        raise
-
-    try:
-        xtb_results: dict[str, float | None] = parse_xtb_output(
-            xtb_output_file=xtb_output_file,
-            temperature=config["xtb"]["etemp"],
+    with open(xtb_output_file, "w") as fstream:
+        subprocess.run(
+            xtb_args,
+            stdout=fstream,
+            stderr=subprocess.STDOUT,
+            cwd=xtb_dir,
+            check=True,
         )
-    except Exception:
-        logger.exception(f"Failed to parse xtb results in file {xtb_output_file}")
-        raise
+
+    xtb_results: dict[str, float | None] = parse_xtb_output(
+        xtb_output_file=xtb_output_file,
+        temperature=config["xtb"]["etemp"],
+    )
 
     xtb_results_file = xtb_dir / "results.json"
     logger.debug(f"Writing results to {xtb_results_file}")
@@ -58,26 +50,22 @@ def parse_xtb_output(
     xtb_output: dict[str, float | None] = dict.fromkeys(THERMODYNAMIC_PARAMS, None)
 
     logger.debug(f"Searching for xTB results in file {xtb_output_file}")
-    try:
-        with open(xtb_output_file) as fstream:
-            for i, line in enumerate(fstream):
-                if "TOTAL ENTHALPY" in line:
-                    try:
-                        xtb_output["H"] = float(line.split()[3]) * HARTTREE_TO_JMOL
-                    except Exception:
-                        logger.exception(
-                            f"Failed to extract total enthalpy from line {i}: {line}",
-                        )
-                elif "TOTAL FREE ENERGY" in line:
-                    try:
-                        xtb_output["G"] = float(line.split()[4]) * HARTTREE_TO_JMOL
-                    except Exception:
-                        logger.exception(
-                            f"Failed to extract total free energy from line {i}: {line}",
-                        )
-    except Exception:
-        logger.exception(f"Failed to parse xtb results from {xtb_output_file}")
-        raise
+    with open(xtb_output_file) as fstream:
+        for i, line in enumerate(fstream):
+            if "TOTAL ENTHALPY" in line:
+                try:
+                    xtb_output["H"] = float(line.split()[3]) * HARTTREE_TO_JMOL
+                except Exception:
+                    logger.exception(
+                        f"Failed to extract total enthalpy from line {i}: {line}",
+                    )
+            elif "TOTAL FREE ENERGY" in line:
+                try:
+                    xtb_output["G"] = float(line.split()[4]) * HARTTREE_TO_JMOL
+                except Exception:
+                    logger.exception(
+                        f"Failed to extract total free energy from line {i}: {line}",
+                    )
 
     if xtb_output["H"] is not None and xtb_output["G"] is not None:
         xtb_output["S"] = (xtb_output["H"] - xtb_output["G"]) / temperature

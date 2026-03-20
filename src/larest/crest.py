@@ -9,7 +9,7 @@ from typing import Any
 from larest.censo import extract_best_conformer_xyz, parse_best_censo_conformers
 from larest.constants import CALMOL_TO_JMOL, CREST_ENTROPY_OUTPUT_PARAMS
 from larest.output import create_dir
-from larest.parsers import parse_command_args
+from larest.setup import parse_command_args
 from larest.rdkit import parse_best_rdkit_conformer
 from larest.xtb import run_xtb
 
@@ -43,18 +43,14 @@ def run_crest_confgen(
         str(best_rdkit_conformer_xyz_file.absolute()),
     ] + parse_command_args(sub_config=["crest", "confgen"], config=config)
 
-    try:
-        with open(crest_output_file, "w") as fstream:
-            subprocess.run(
-                crest_args,
-                stdout=fstream,
-                stderr=subprocess.STDOUT,
-                cwd=crest_dir,
-                check=True,
-            )
-    except Exception:
-        logger.exception("Failed to run CREST confgen")
-        raise
+    with open(crest_output_file, "w") as fstream:
+        subprocess.run(
+            crest_args,
+            stdout=fstream,
+            stderr=subprocess.STDOUT,
+            cwd=crest_dir,
+            check=True,
+        )
 
     if config["steps"]["xtb"]:
         best_crest_conformer_xyz_file = crest_dir / "crest_best.xyz"
@@ -100,18 +96,14 @@ def run_crest_entropy(
         str(best_censo_conformer_xyz_file.absolute()),
     ] + parse_command_args(sub_config=["crest", "entropy"], config=config)
 
-    try:
-        with open(crest_output_file, "w") as fstream:
-            subprocess.run(
-                crest_args,
-                stdout=fstream,
-                stderr=subprocess.STDOUT,
-                cwd=crest_dir,
-                check=True,
-            )
-    except Exception:
-        logger.exception("Failed to run CREST entropy")
-        raise
+    with open(crest_output_file, "w") as fstream:
+        subprocess.run(
+            crest_args,
+            stdout=fstream,
+            stderr=subprocess.STDOUT,
+            cwd=crest_dir,
+            check=True,
+        )
 
     crest_results: dict[str, float | None] = parse_crest_entropy_output(
         crest_output_file=crest_output_file,
@@ -134,41 +126,35 @@ def parse_crest_entropy_output(
     )
 
     logger.debug(f"Searching for results in file {crest_output_file}")
-    try:
-        with open(crest_output_file) as fstream:
-            for i, line in enumerate(fstream):
-                if "Sconf" in line:
-                    try:
-                        crest_output["S_conf"] = (
-                            float(line.split()[-1]) * CALMOL_TO_JMOL
-                        )
-                    except Exception:
-                        logger.exception(
-                            f"Failed to extract S_conf from line {i}: {line}",
-                        )
-                elif ("+" in line) and ("δSrrho" in line) and (len(line.split()) == 4):
-                    try:
-                        crest_output["S_rrho"] = (
-                            float(line.split()[-1]) * CALMOL_TO_JMOL
-                        )
-                    except Exception:
-                        logger.exception(
-                            f"Failed to extract S_rrho from line {i}: {line}",
-                        )
-                elif ("S(total)" in line) and ("cal" in line):
-                    try:
-                        crest_output["S_total"] = (
-                            float(line.split()[3]) * CALMOL_TO_JMOL
-                        )
-                    except Exception:
-                        logger.exception(
-                            f"Failed to extract S_total from line {i}: {line}",
-                        )
-    except Exception:
-        logger.exception(
-            f"Failed to parse crest entropy results from {crest_output_file}",
-        )
-        raise
+    with open(crest_output_file) as fstream:
+        for i, line in enumerate(fstream):
+            if "Sconf" in line:
+                try:
+                    crest_output["S_conf"] = (
+                        float(line.split()[-1]) * CALMOL_TO_JMOL
+                    )
+                except Exception:
+                    logger.exception(
+                        f"Failed to extract S_conf from line {i}: {line}",
+                    )
+            elif ("+" in line) and ("δSrrho" in line) and (len(line.split()) == 4):
+                try:
+                    crest_output["S_rrho"] = (
+                        float(line.split()[-1]) * CALMOL_TO_JMOL
+                    )
+                except Exception:
+                    logger.exception(
+                        f"Failed to extract S_rrho from line {i}: {line}",
+                    )
+            elif ("S(total)" in line) and ("cal" in line):
+                try:
+                    crest_output["S_total"] = (
+                        float(line.split()[3]) * CALMOL_TO_JMOL
+                    )
+                except Exception:
+                    logger.exception(
+                        f"Failed to extract S_total from line {i}: {line}",
+                    )
 
     if not all(value is not None for value in crest_output.values()):
         logger.warning(f"Failed to extract necessary data from {crest_output_file}")

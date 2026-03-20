@@ -30,7 +30,7 @@ classifiers = [
 requires-python = ">=3.11"
 
 [project.scripts]
-larest = "larest.main:entry_point"
+larest = "larest.cli:entry_point"
 
 [tool.setuptools.packages.find]
 where = ["src"]  # ["."] by default

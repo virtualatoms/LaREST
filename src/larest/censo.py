@@ -8,7 +8,7 @@ from typing import Any
 
 from larest.constants import CENSO_SECTIONS, HARTTREE_TO_JMOL, THERMODYNAMIC_PARAMS
 from larest.output import create_dir
-from larest.parsers import parse_command_args
+from larest.setup import parse_command_args
 from larest.setup import create_censorc
 
 logger = logging.getLogger(__name__)
@@ -37,18 +37,14 @@ def run_censo(
         str(censo_config_file.absolute()),
     ] + parse_command_args(sub_config=["censo", "cli"], config=config)
 
-    try:
-        with open(censo_output_file, "w") as fstream:
-            subprocess.run(
-                censo_args,
-                stdout=fstream,
-                stderr=subprocess.STDOUT,
-                cwd=censo_dir,
-                check=True,
-            )
-    except Exception:
-        logger.exception("Failed to run CENSO")
-        raise
+    with open(censo_output_file, "w") as fstream:
+        subprocess.run(
+            censo_args,
+            stdout=fstream,
+            stderr=subprocess.STDOUT,
+            cwd=censo_dir,
+            check=True,
+        )
 
     censo_results: dict[str, dict[str, float | None]] = parse_censo_output(
         censo_output_file=censo_output_file,
@@ -73,29 +69,23 @@ def parse_censo_output(
     }
 
     logger.debug(f"Searching for CENSO results in file {censo_output_file}")
-    try:
-        with open(censo_output_file) as fstream:
-            section_no: int = 0
-            for i, line in enumerate(fstream):
-                if f"part{section_no}" in line:
-                    try:
-                        censo_output[CENSO_SECTIONS[section_no]]["H"] = (
-                            float(line.split()[1]) * HARTTREE_TO_JMOL
-                        )
-                        censo_output[CENSO_SECTIONS[section_no]]["G"] = (
-                            float(line.split()[2]) * HARTTREE_TO_JMOL
-                        )
-                    except Exception:
-                        logger.exception(
-                            f"Failed to extract H and G from line {i}: {line}",
-                        )
-                    else:
-                        section_no += 1
-    except Exception:
-        logger.exception(
-            f"Failed to parse censo results from {censo_output_file}",
-        )
-        raise
+    with open(censo_output_file) as fstream:
+        section_no: int = 0
+        for i, line in enumerate(fstream):
+            if f"part{section_no}" in line:
+                try:
+                    censo_output[CENSO_SECTIONS[section_no]]["H"] = (
+                        float(line.split()[1]) * HARTTREE_TO_JMOL
+                    )
+                    censo_output[CENSO_SECTIONS[section_no]]["G"] = (
+                        float(line.split()[2]) * HARTTREE_TO_JMOL
+                    )
+                except Exception:
+                    logger.exception(
+                        f"Failed to extract H and G from line {i}: {line}",
+                    )
+                else:
+                    section_no += 1
 
     for params in censo_output.values():
         if params["H"] is not None and params["G"] is not None:
@@ -119,25 +109,19 @@ def parse_best_censo_conformers(
 
     logger.debug(f"Searching for results in file {censo_output_file}")
     section_no: int = 0
-    try:
-        with open(censo_output_file) as fstream:
-            for i, line in enumerate(fstream):
-                if "Highest ranked conformer" in line:
-                    try:
-                        best_censo_conformers[CENSO_SECTIONS[section_no]] = (
-                            line.split()[-1]
-                        )
-                    except Exception:
-                        logger.exception(
-                            f"Failed to extract best conformer from line {i}: {line}",
-                        )
-                    else:
-                        section_no += 1
-    except Exception:
-        logger.exception(
-            f"Failed to determine best censo conformers from {censo_output_file}",
-        )
-        raise
+    with open(censo_output_file) as fstream:
+        for i, line in enumerate(fstream):
+            if "Highest ranked conformer" in line:
+                try:
+                    best_censo_conformers[CENSO_SECTIONS[section_no]] = (
+                        line.split()[-1]
+                    )
+                except Exception:
+                    logger.exception(
+                        f"Failed to extract best conformer from line {i}: {line}",
+                    )
+                else:
+                    section_no += 1
 
     if not all(best_censo_conformers.values()):
         logger.warning(
@@ -160,24 +144,13 @@ def extract_best_conformer_xyz(
     logger.debug(
         f"Extracting best conformer ({best_conformer_id}) .xyz from {censo_conformers_xyz_file}",
     )
-    try:
-        with open(censo_conformers_xyz_file) as fin:
-            conformers_xyz: list[str] = fin.readlines()
-            n_atoms: int = int(conformers_xyz[0])
-            for i, line in enumerate(conformers_xyz):
-                if best_conformer_id in line.split():
-                    try:
-                        with open(output_xyz_file, "w") as fout:
-                            fout.writelines(conformers_xyz[i - 1 : i + n_atoms + 1])
-                    except Exception:
-                        logger.exception(
-                            f"Failed to write best conformer to {output_xyz_file}",
-                        )
-                    break
-    except Exception:
-        logger.exception(
-            f"Failed to extract best censo conformer xyz from {censo_conformers_xyz_file}",
-        )
-        raise
+    with open(censo_conformers_xyz_file) as fin:
+        conformers_xyz: list[str] = fin.readlines()
+        n_atoms: int = int(conformers_xyz[0])
+        for i, line in enumerate(conformers_xyz):
+            if best_conformer_id in line.split():
+                with open(output_xyz_file, "w") as fout:
+                    fout.writelines(conformers_xyz[i - 1 : i + n_atoms + 1])
+                break
 
     logger.debug(f"Finished extracting best conformer xyz to {output_xyz_file}")

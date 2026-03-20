@@ -18,7 +18,7 @@ from rdkit.Chem.rdmolops import AddHs
 from larest.chem import get_mol
 from larest.constants import KCALMOL_TO_JMOL, THERMODYNAMIC_PARAMS
 from larest.output import create_dir
-from larest.parsers import parse_command_args
+from larest.setup import parse_command_args
 from larest.xtb import parse_xtb_output
 
 if TYPE_CHECKING:
@@ -83,17 +83,13 @@ def run_rdkit(
 
     sdf_file = rdkit_dir / "conformers.sdf"
     logger.debug(f"Writing conformers and their energies to {sdf_file}")
-    try:
-        with open(sdf_file, "w") as fstream:
-            writer: SDWriter = SDWriter(fstream)
-            for cid, energy in conformer_energies:
-                rdkit_mol.SetIntProp("conformer_id", cid)
-                rdkit_mol.SetDoubleProp("energy", energy)
-                writer.write(rdkit_mol, confId=cid)
-            writer.close()
-    except Exception:
-        logger.exception(f"Failed to write RDKit conformers to {sdf_file}")
-        raise
+    with open(sdf_file, "w") as fstream:
+        writer: SDWriter = SDWriter(fstream)
+        for cid, energy in conformer_energies:
+            rdkit_mol.SetIntProp("conformer_id", cid)
+            rdkit_mol.SetDoubleProp("energy", energy)
+            writer.write(rdkit_mol, confId=cid)
+        writer.close()
 
     logger.debug("Computing thermodynamic parameters of conformers using xTB")
     xtb_default_args: list[str] = parse_command_args(sub_config=["xtb"], config=config)
@@ -115,18 +111,12 @@ def run_rdkit(
             conformer_id: int = conformer.GetIntProp("conformer_id")
             conformer_xyz_file = rdkit_dir / f"conformer_{conformer_id}.xyz"
 
-            try:
-                MolToXYZFile(
-                    mol=rdkit_mol,
-                    filename=str(conformer_xyz_file),
-                    confId=conformer_id,
-                    precision=config["rdkit"]["precision"],
-                )
-            except Exception:
-                logger.exception(
-                    f"Failed to write conformer coordinates to {conformer_xyz_file}",
-                )
-                raise
+            MolToXYZFile(
+                mol=rdkit_mol,
+                filename=str(conformer_xyz_file),
+                confId=conformer_id,
+                precision=config["rdkit"]["precision"],
+            )
 
             xtb_dir = xtb_base_dir / f"conformer_{conformer_id}"
             create_dir(xtb_dir)

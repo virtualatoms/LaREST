@@ -1,4 +1,5 @@
-import argparse
+from __future__ import annotations
+
 import copy
 import logging
 import logging.config
@@ -9,102 +10,62 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def get_config(args: argparse.Namespace) -> dict[str, Any]:
-    """Get config and default options for LaREST pipeline run
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Input command-line arguments to LaREST, containing location of config dir
-
-    Returns
-    -------
-    dict[str, Any]
-        Final config for LaREST run, obtained by loading config.toml
-
-    """
-    config_file: Path = Path(args.config) / "config.toml"
+def get_config(config_dir: Path) -> dict[str, Any]:
+    config_file = config_dir / "config.toml"
     try:
         with open(config_file, "rb") as fstream:
-            config = tomllib.load(fstream)
+            return tomllib.load(fstream)
     except Exception:
         print(f"Failed to load config from {config_file}")
         raise
-    return config
 
 
-def get_logger(
-    name: str,
-    args: argparse.Namespace,
-    config: dict[str, Any],
-) -> logging.Logger:
-    """Get logger used during LaREST pipeline run
-
-    Parameters
-    ----------
-    name : str
-        Name passed to logger
-    args : argparse.Namespace
-        Input command-line arguments to LaREST, containing location of output dir
-    config : dict[str, Any]
-        Config for LaREST run
-
-    Returns
-    -------
-    logging.Logger
-        Logger object used to implement a logging system for LaREST
-
-    """
+def get_logger(output_dir: Path, config: dict[str, Any]) -> None:
     try:
         log_config: dict[str, Any] = copy.deepcopy(config["logging"])
-
-        # set logging file location to output dir
-        log_config["handlers"]["file"]["filename"] = Path(
-            args.output,
-            log_config["handlers"]["file"]["filename"],
+        log_config["handlers"]["file"]["filename"] = (
+            output_dir / log_config["handlers"]["file"]["filename"]
         ).resolve()
-
         logging.config.dictConfig(log_config)
     except Exception:
         print(f"Failed to setup logging config from {config}")
         raise
 
-    return logging.getLogger(name)
+
+def parse_command_args(sub_config: list[str], config: dict[str, Any]) -> list[str]:
+    cfg = config
+    try:
+        for key in sub_config:
+            cfg = cfg[key]
+    except KeyError:
+        logger.warning(f"Failed to find sub-config {sub_config} in config, using no arguments")
+        return []
+
+    args = []
+    for k, v in cfg.items():
+        if v is False:
+            continue
+        args.append(f"--{k}")
+        if v is not True:
+            args.append(str(v))
+    logger.debug(f"Returning {sub_config} args: {args}")
+    return args
 
 
-def create_censorc(
-    config: dict[str, Any],
-    temp_dir: Path,
-) -> None:
-    """Create censorc for LaREST run using specified config options
-
-    Parameters
-    ----------
-    config : dict[str, Any]
-        Config for LaREST run
-    temp_dir : Path
-        Directory in which to write the .censo2rc file
-
-    """
+def create_censorc(config: dict[str, Any], temp_dir: Path) -> None:
+    censorc_file = temp_dir / ".censo2rc"
     try:
         censo_config: dict[str, Any] = config["censo"]
     except KeyError:
-        logger.exception("Failed to load censo config")
         raise
 
-    censorc_file: Path = temp_dir / ".censo2rc"
-
-    # write new .censo2rc using config options
     try:
         with open(censorc_file, "w") as fstream:
             for header, sub_config in censo_config.items():
                 fstream.write(f"[{header}]\n")
-                fstream.writelines(
-                    f"{key} = {value}\n" for key, value in sub_config.items()
-                )
+                fstream.writelines(f"{key} = {value}\n" for key, value in sub_config.items())
                 fstream.write("\n")
     except Exception:
-        logger.exception(f"Failed to create censo config file at {censorc_file}")
         raise
     else:
         logger.debug(f"Created censo config file at {censorc_file}")

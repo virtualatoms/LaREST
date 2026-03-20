@@ -1,5 +1,7 @@
+from __future__ import annotations
+
+import json
 import logging
-from argparse import Namespace
 from pathlib import Path
 from typing import Any
 
@@ -7,15 +9,50 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from larest.censo import run_censo
+from larest.checkpoint import PipelineStage, apply_entropy_correction, restore_results
 from larest.chem import build_polymer
 from larest.constants import THERMODYNAMIC_PARAMS
+from larest.crest import run_crest_confgen, run_crest_entropy
 from larest.data import Initiator, MolResults, Monomer, Polymer
-from larest.output import create_dir, slugify
-from larest.parsers import make_parser
-from larest.pipeline import MolPipeline
-from larest.setup import get_config, get_logger
+from larest.output import create_dir, remove_dir, slugify
+from larest.rdkit import run_rdkit
 
 logger = logging.getLogger(__name__)
+
+
+def run_pipeline(
+    mol: Monomer | Polymer | Initiator,
+    output_dir: Path,
+    config: dict[str, Any],
+) -> MolResults:
+    match mol:
+        case Polymer():
+            dir_path = output_dir / "Polymer" / f"{slugify(mol.monomer_smiles)}_{mol.length}"
+        case _:
+            dir_path = output_dir / type(mol).__name__ / slugify(mol.smiles)
+
+    create_dir(output_dir / "temp")
+    results, stage = restore_results(dir_path)
+
+    if config["steps"]["rdkit"] and stage <= PipelineStage.RDKIT:
+        results |= run_rdkit(mol.smiles, dir_path, config)
+    if config["steps"]["crest_confgen"] and stage <= PipelineStage.CREST_CONFGEN:
+        results |= run_crest_confgen(dir_path, config)
+    if config["steps"]["censo"] and stage <= PipelineStage.CENSO:
+        results |= run_censo(dir_path, output_dir, config)
+    if config["steps"]["crest_entropy"] and stage <= PipelineStage.CREST_ENTROPY:
+        crest_entropy_results = run_crest_entropy(dir_path, config)
+        if config["steps"]["censo"]:
+            results |= apply_entropy_correction(results["3_REFINEMENT"], crest_entropy_results)
+
+    results_file = dir_path / "results.json"
+    logger.debug(f"Writing final results to {results_file}")
+    with open(results_file, "w") as fstream:
+        json.dump(results, fstream, sort_keys=True, indent=4, allow_nan=True)
+
+    remove_dir(output_dir / "temp")
+    return MolResults(smiles=mol.smiles, sections=results)
 
 
 def compile_results(
@@ -64,22 +101,15 @@ def compile_results(
         summary_df.to_csv(summary_dir / f"{section}.csv", header=True, index=False)
 
 
-def main(
-    args: Namespace,
-    config: dict[str, Any],
-) -> None:
-    output_dir = Path(args.output)
+def main(output_dir: Path, config: dict[str, Any]) -> None:
     reaction_type = config["reaction"]["type"]
 
     logger.info("Running pipeline for monomers")
-    for monomer_smiles in tqdm(
-        config["reaction"]["monomers"],
-        desc="Running pipeline for monomers",
-    ):
+    for monomer_smiles in tqdm(config["reaction"]["monomers"], desc="Running pipeline for monomers"):
         monomer = Monomer(smiles=monomer_smiles)
 
         try:
-            monomer_results = MolPipeline(monomer, output_dir, config).run()
+            monomer_results = run_pipeline(monomer, output_dir, config)
         except Exception:
             logger.exception(f"Failed to run pipeline for monomer {monomer_smiles}")
             continue
@@ -88,11 +118,9 @@ def main(
         if reaction_type == "ROR":
             initiator = Initiator(smiles=config["reaction"]["initiator"])
             try:
-                initiator_results = MolPipeline(initiator, output_dir, config).run()
+                initiator_results = run_pipeline(initiator, output_dir, config)
             except Exception:
-                logger.exception(
-                    f"Failed to run pipeline for initiator {config['reaction']['initiator']}",
-                )
+                logger.exception(f"Failed to run pipeline for initiator {config['reaction']['initiator']}")
                 continue
 
         polymers = []
@@ -105,23 +133,17 @@ def main(
                     config=config,
                 )
             except Exception:
-                logger.exception(
-                    f"Failed to build polymer for monomer {monomer_smiles} (length: {length})",
-                )
+                logger.exception(f"Failed to build polymer for monomer {monomer_smiles} (length: {length})")
                 continue
-            polymers.append(
-                Polymer(smiles=polymer_smiles, monomer_smiles=monomer_smiles, length=length)
-            )
+            polymers.append(Polymer(smiles=polymer_smiles, monomer_smiles=monomer_smiles, length=length))
 
         polymer_results: list[tuple[int, MolResults]] = []
         for polymer in tqdm(polymers, desc="Running pipeline for each polymer length"):
             try:
-                result = MolPipeline(polymer, output_dir, config).run()
+                result = run_pipeline(polymer, output_dir, config)
                 polymer_results.append((polymer.length, result))
             except Exception:
-                logger.exception(
-                    f"Failed to run pipeline for polymer {monomer_smiles} (length: {polymer.length})",
-                )
+                logger.exception(f"Failed to run pipeline for polymer {monomer_smiles} (length: {polymer.length})")
                 continue
 
         compile_results(
@@ -132,24 +154,3 @@ def main(
             output_dir=output_dir,
             reaction_type=reaction_type,
         )
-
-
-def entry_point() -> None:
-    """Entry point of the LaREST package script"""
-    args: Namespace = make_parser().parse_args()
-
-    try:
-        config: dict[str, Any] = get_config(args=args)
-    except Exception as err:
-        raise SystemExit(1) from err
-
-    try:
-        get_logger(name=__name__, args=args, config=config)
-    except Exception as err:
-        raise SystemExit(1) from err
-
-    logger.info("LaREST Initialised")
-    for config_key, config_value in config.items():
-        logger.debug(f"{config_key} config:\n{config_value}")
-
-    main(args=args, config=config)
