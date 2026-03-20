@@ -4,7 +4,7 @@ from collections.abc import Callable
 from enum import IntEnum
 from pathlib import Path
 
-from larest.exceptions import NoResultsError
+from larest.constants import PIPELINE_SECTIONS, THERMODYNAMIC_PARAMS
 from larest.parsers import parse_best_rdkit_conformer
 
 logger = logging.getLogger(__name__)
@@ -19,9 +19,13 @@ class PipelineStage(IntEnum):
 
 
 def restore_results(
-    results: dict[str, dict[str, float | None]],
     dir_path: Path,
 ) -> tuple[dict[str, dict[str, float | None]], PipelineStage]:
+    results: dict[str, dict[str, float | None]] = {
+        section: dict.fromkeys(THERMODYNAMIC_PARAMS, None)
+        for section in PIPELINE_SECTIONS
+    }
+
     if not _load_stage(
         path=dir_path / "xtb" / "rdkit" / "results.csv",
         load_fn=lambda path: _parse_rdkit(results, path),
@@ -82,7 +86,7 @@ def _parse_crest_entropy(results: dict, path: Path) -> None:
     crest_entropy_results: dict[str, float | None] = json.loads(path.read_text())
     censo_corrected_results = results["3_REFINEMENT"].copy()
     if censo_corrected_results["S"] is None or crest_entropy_results["S_total"] is None:
-        raise NoResultsError(
+        raise ValueError(
             "Failed to apply CREST entropy correction to CENSO results",
         )
     censo_corrected_results["S"] += crest_entropy_results["S_total"]

@@ -10,12 +10,10 @@ from rdkit.Chem.rdmolops import (
     MolzipLabel,
     MolzipParams,
     RemoveHs,
-    RemoveHsParameters,
     molzip,
 )
 
 from larest.constants import INITIATOR_GROUPS, MONOMER_GROUPS
-from larest.exceptions import PolymerBuildError
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ def get_mol(smiles: str) -> Mol:
     """
     mol: Mol = MolFromSmiles(smiles)
     if mol is None:
-        raise PolymerBuildError(
+        raise ValueError(
             f"Failed to create RDKit Mol object from SMILES: {smiles}",
         )
     logger.debug(f"Created RDKit Mol object from SMILES: {smiles}")
@@ -59,7 +57,7 @@ def get_ring_size(smiles: str) -> int | None:
     """
     try:
         mol: Mol = get_mol(smiles)
-    except PolymerBuildError:
+    except ValueError:
         logger.exception(f"Failed to get ring size for SMILES: {smiles}")
         raise
 
@@ -162,7 +160,7 @@ def get_polymer_unit(
                     break
         if len(fg_atom_idx) != 0:
             if len(fg_atom_idx) != 2:
-                raise PolymerBuildError(
+                raise ValueError(
                     f"Trying to break bond between >2 atoms for functional group {MolToSmiles(fg_mol)}",
                 )
             logger.debug(f"Functional group detected: {MolToSmiles(fg_mol)}")
@@ -170,7 +168,7 @@ def get_polymer_unit(
 
     # no functional group detected in monomer/initiator
     if len(fg_atom_idx) == 0:
-        raise PolymerBuildError(
+        raise ValueError(
             f"No functional group atom ids found for {mol_type} SMILES: {smiles}",
         )
     logger.debug(f"Functional group atom ids: {fg_atom_idx}")
@@ -207,11 +205,11 @@ def build_polymer(
     config: dict[str, Any],
 ) -> str:
     if polymer_length <= 1 and reaction_type == "RER":
-        raise PolymerBuildError(
+        raise ValueError(
             f"Please specify a polymer length > 1 for RER reaction (current length: {polymer_length})",
         )
     if polymer_length < 1 and reaction_type == "ROR":
-        raise PolymerBuildError(
+        raise ValueError(
             f"Please specify a polymer length >= 1 for ROR reaction (current length: {polymer_length}",
         )
 

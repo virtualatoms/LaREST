@@ -61,6 +61,35 @@
   except call `super().__init__()` with the same arguments. Deleted; `LarestMol.__init__`
   is now used directly.
 
+- **Separated pipeline execution from data model** (`base.py` → `data.py`, `pipeline.py`):
+  `LarestMol` and its subclasses carried results state, path management, config, and pipeline
+  execution methods all in one place. Split into two concerns: `data.py` contains plain
+  dataclasses (`Monomer`, `Initiator`, `Polymer`, `MolResults`) with no IO or side effects;
+  `pipeline.py` contains `MolPipeline` which owns execution, path resolution, and checkpointing.
+  `MolPipeline(mol, output_dir, config).run()` returns a `MolResults` dataclass.
+
+- **Removed path and config state from molecule classes** (`data.py`): `output_dir`,
+  `config_dir`, `verbose`, and `config` fields removed from molecule dataclasses. Paths are
+  now computed in `MolPipeline._dir_path()` via a `match` on molecule type. The `config_dir`
+  parameter was eliminated entirely — the CENSO temp directory now uses `output_dir / "temp"`.
+
+- **Moved `compile_results` out of `Monomer`** (`main.py`): Result aggregation and CSV writing
+  was a method on `Monomer`, mixing post-processing concerns into the data class. Now a
+  standalone function in `main.py` that takes explicit `MolResults` arguments.
+
+- **Removed custom exceptions** (`exceptions.py`): `PolymerBuildError` and `NoResultsError`
+  were trivial `Exception` subclasses adding no behaviour. Replaced with `ValueError` at all
+  raise and catch sites. `exceptions.py` is now empty.
+
+- **Checkpoint restoration moved into `MolPipeline`** (`checkpoint.py`): `restore_results` no
+  longer accepts a pre-initialised results dict; it initialises one internally and returns
+  `(results, stage)`. Construction of molecule objects no longer triggers filesystem access.
+
+- **Polymer construction moved to `main.py`** (`main.py`, `data.py`): `Monomer.__post_init__`
+  previously called `build_polymer` and `restore_results` for every polymer length during
+  construction. Polymer SMILES are now built explicitly in `main.py` before constructing
+  `Polymer` objects, making construction side-effect free.
+
 ### Minor
 
 - **`os.makedirs` replaced with `Path.mkdir`** (`output.py`): `os.makedirs(path, exist_ok=False)`
