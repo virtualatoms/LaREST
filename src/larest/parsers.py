@@ -14,6 +14,8 @@ from larest.constants import (
     THERMODYNAMIC_PARAMS,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class LarestArgumentParser(argparse.ArgumentParser):
     def __init__(self) -> None:
@@ -46,19 +48,17 @@ class LarestArgumentParser(argparse.ArgumentParser):
 def parse_command_args(
     sub_config: list[str],
     config: dict[str, Any],
-    logger: logging.Logger,
 ) -> list[str]:
+    cfg = config
     try:
-        for config_key in sub_config:
-            config = config[config_key]
-    except Exception as err:
-        logger.exception(err)
-        logger.warning(f"Failed to find sub-config {sub_config} in config {config}")
-        logger.warning("Using default (no) arguments instead")
+        for key in sub_config:
+            cfg = cfg[key]
+    except KeyError:
+        logger.warning(f"Failed to find sub-config {sub_config} in config, using no arguments")
         return []
 
     args = []
-    for k, v in config.items():
+    for k, v in cfg.items():
         if v is False:
             continue
         if v is True:
@@ -73,12 +73,8 @@ def parse_command_args(
 def parse_xtb_output(
     xtb_output_file: Path,
     temperature: float,
-    logger: logging.Logger,
 ) -> dict[str, float | None]:
-    xtb_output: dict[str, float | None] = dict.fromkeys(
-        THERMODYNAMIC_PARAMS,
-        None,
-    )
+    xtb_output: dict[str, float | None] = dict.fromkeys(THERMODYNAMIC_PARAMS, None)
 
     logger.debug(f"Searching for xTB results in file {xtb_output_file}")
     try:
@@ -87,39 +83,35 @@ def parse_xtb_output(
                 if "TOTAL ENTHALPY" in line:
                     try:
                         xtb_output["H"] = float(line.split()[3]) * HARTTREE_TO_JMOL
-                    except Exception as err:
-                        logger.exception(err)
+                    except Exception:
                         logger.exception(
                             f"Failed to extract total enthalpy from line {i}: {line}",
                         )
                 elif "TOTAL FREE ENERGY" in line:
                     try:
                         xtb_output["G"] = float(line.split()[4]) * HARTTREE_TO_JMOL
-                    except Exception as err:
-                        logger.exception(err)
+                    except Exception:
                         logger.exception(
                             f"Failed to extract total free energy from line {i}: {line}",
                         )
-    except Exception as err:
-        logger.exception(err)
+    except Exception:
         logger.exception(f"Failed to parse xtb results from {xtb_output_file}")
         raise
-    else:
-        if xtb_output["H"] and xtb_output["G"]:
-            xtb_output["S"] = (xtb_output["H"] - xtb_output["G"]) / temperature
-        if not all(xtb_output.values()):
-            logger.warning(f"Failed to extract necessary data from {xtb_output_file}")
-            logger.warning("Missing data will be assigned None")
-        logger.debug(
-            f"Found enthalpy: {xtb_output['H']}, entropy: {xtb_output['S']}, free energy {xtb_output['G']}",
-        )
 
-        return xtb_output
+    if xtb_output["H"] is not None and xtb_output["G"] is not None:
+        xtb_output["S"] = (xtb_output["H"] - xtb_output["G"]) / temperature
+    if not all(v is not None for v in xtb_output.values()):
+        logger.warning(f"Failed to extract necessary data from {xtb_output_file}")
+        logger.warning("Missing data will be assigned None")
+    logger.debug(
+        f"Found enthalpy: {xtb_output['H']}, entropy: {xtb_output['S']}, free energy {xtb_output['G']}",
+    )
+
+    return xtb_output
 
 
 def parse_crest_entropy_output(
     crest_output_file: Path,
-    logger: logging.Logger,
 ) -> dict[str, float | None]:
     crest_output: dict[str, float | None] = dict.fromkeys(
         CREST_ENTROPY_OUTPUT_PARAMS,
@@ -135,8 +127,7 @@ def parse_crest_entropy_output(
                         crest_output["S_conf"] = (
                             float(line.split()[-1]) * CALMOL_TO_JMOL
                         )
-                    except Exception as err:
-                        logger.exception(err)
+                    except Exception:
                         logger.exception(
                             f"Failed to extract S_conf from line {i}: {line}",
                         )
@@ -145,8 +136,7 @@ def parse_crest_entropy_output(
                         crest_output["S_rrho"] = (
                             float(line.split()[-1]) * CALMOL_TO_JMOL
                         )
-                    except Exception as err:
-                        logger.exception(err)
+                    except Exception:
                         logger.exception(
                             f"Failed to extract S_rrho from line {i}: {line}",
                         )
@@ -155,35 +145,30 @@ def parse_crest_entropy_output(
                         crest_output["S_total"] = (
                             float(line.split()[3]) * CALMOL_TO_JMOL
                         )
-                    except Exception as err:
-                        logger.exception(err)
+                    except Exception:
                         logger.exception(
                             f"Failed to extract S_total from line {i}: {line}",
                         )
-    except Exception as err:
-        logger.exception(err)
+    except Exception:
         logger.exception(
             f"Failed to parse crest entropy results from {crest_output_file}",
         )
         raise
-    else:
-        if not all(value is not None for value in crest_output.values()):
-            logger.warning(f"Failed to extract necessary data from {crest_output_file}")
-            logger.warning("Missing data will be assigned None")
-        logger.debug(
-            f"Found S_conf: {crest_output['S_conf']}, S_rrho: {crest_output['S_rrho']}",
-        )
-        logger.debug(
-            f"S_total {crest_output['S_total']}",
-        )
 
-        return crest_output
+    if not all(value is not None for value in crest_output.values()):
+        logger.warning(f"Failed to extract necessary data from {crest_output_file}")
+        logger.warning("Missing data will be assigned None")
+    logger.debug(
+        f"Found S_conf: {crest_output['S_conf']}, S_rrho: {crest_output['S_rrho']}",
+    )
+    logger.debug(f"S_total {crest_output['S_total']}")
+
+    return crest_output
 
 
 def parse_censo_output(
     censo_output_file: Path,
     temperature: float,
-    logger: logging.Logger,
 ) -> dict[str, dict[str, float | None]]:
     # WARN: cannot use fromkeys, otherwise they all point to the same mutable dict
     censo_output: dict[str, dict[str, float | None]] = {
@@ -203,41 +188,35 @@ def parse_censo_output(
                         censo_output[CENSO_SECTIONS[section_no]]["G"] = (
                             float(line.split()[2]) * HARTTREE_TO_JMOL
                         )
-
-                    except Exception as err:
-                        logger.exception(err)
+                    except Exception:
                         logger.exception(
                             f"Failed to extract H and G from line {i}: {line}",
                         )
                     else:
                         section_no += 1
-    except Exception as err:
-        logger.exception(err)
+    except Exception:
         logger.exception(
             f"Failed to parse censo results from {censo_output_file}",
         )
         raise
-    else:
-        for params in censo_output.values():
-            if params["H"] and params["G"]:
-                params["S"] = (params["H"] - params["G"]) / temperature
 
-            if not all(params.values()):
-                logger.warning(
-                    f"Failed to extract necessary data from {censo_output_file}",
-                )
-                logger.warning("Missing data will be assigned None")
-
-            logger.debug(
-                f"Found enthalpy: {params['H']}, free energy: {params['G']}, entropy {params['S']}",
+    for params in censo_output.values():
+        if params["H"] is not None and params["G"] is not None:
+            params["S"] = (params["H"] - params["G"]) / temperature
+        if not all(v is not None for v in params.values()):
+            logger.warning(
+                f"Failed to extract necessary data from {censo_output_file}",
             )
+            logger.warning("Missing data will be assigned None")
+        logger.debug(
+            f"Found enthalpy: {params['H']}, free energy: {params['G']}, entropy {params['S']}",
+        )
 
-        return censo_output
+    return censo_output
 
 
 def parse_best_censo_conformers(
     censo_output_file: Path,
-    logger: logging.Logger,
 ) -> dict[str, str]:
     best_censo_conformers: dict[str, str] = dict.fromkeys(CENSO_SECTIONS, "CONF0")
 
@@ -251,39 +230,35 @@ def parse_best_censo_conformers(
                         best_censo_conformers[CENSO_SECTIONS[section_no]] = (
                             line.split()[-1]
                         )
-                    except Exception as err:
-                        logger.exception(err)
+                    except Exception:
                         logger.exception(
                             f"Failed to extract best conformer from line {i}: {line}",
                         )
                     else:
                         section_no += 1
-    except Exception as err:
-        logger.exception(err)
+    except Exception:
         logger.exception(
             f"Failed to determine best censo conformers from {censo_output_file}",
         )
         raise
-    else:
-        if not all(best_censo_conformers.values()):
-            logger.warning(
-                f"Failed to extract best conformers from {censo_output_file}",
-            )
-            logger.warning("Missing sections will be assigned first conformer (CONF0)")
 
-        for section in CENSO_SECTIONS:
-            logger.debug(
-                f"Best conformer in {section}: {best_censo_conformers[section]}",
-            )
+    if not all(best_censo_conformers.values()):
+        logger.warning(
+            f"Failed to extract best conformers from {censo_output_file}",
+        )
+        logger.warning("Missing sections will be assigned first conformer (CONF0)")
+    for section in CENSO_SECTIONS:
+        logger.debug(
+            f"Best conformer in {section}: {best_censo_conformers[section]}",
+        )
 
-        return best_censo_conformers
+    return best_censo_conformers
 
 
 def extract_best_conformer_xyz(
     censo_conformers_xyz_file: Path,
     best_conformer_id: str,
     output_xyz_file: Path,
-    logger: logging.Logger,
 ) -> None:
     logger.debug(
         f"Extracting best conformer ({best_conformer_id}) .xyz from {censo_conformers_xyz_file}",
@@ -297,22 +272,18 @@ def extract_best_conformer_xyz(
                     try:
                         with open(output_xyz_file, "w") as fout:
                             fout.writelines(conformers_xyz[i - 1 : i + n_atoms + 1])
-                    except Exception as err:
-                        logger.exception(err)
+                    except Exception:
                         logger.exception(
                             f"Failed to write best conformer to {output_xyz_file}",
                         )
                     break
-    except Exception as err:
-        logger.exception(err)
+    except Exception:
         logger.exception(
             f"Failed to extract best censo conformer xyz from {censo_conformers_xyz_file}",
         )
         raise
-    else:
-        logger.debug(
-            f"Finished extracting best conformer xyz to {output_xyz_file}",
-        )
+
+    logger.debug(f"Finished extracting best conformer xyz to {output_xyz_file}")
 
 
 def parse_best_rdkit_conformer(xtb_rdkit_results_file: Path) -> dict[str, float | None]:

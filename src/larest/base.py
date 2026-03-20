@@ -46,7 +46,6 @@ from larest.setup import create_censorc
 
 if TYPE_CHECKING:
     from argparse import Namespace
-    from io import IOBase
 
     from rdkit.Chem.rdchem import Mol
     from rdkit.ForceField.rdForceField import MMFFMolProperties
@@ -81,7 +80,6 @@ class LarestMol(metaclass=ABCMeta):
         self._results, self._pipeline_stage = restore_results(
             results=self._results,
             dir_path=self.dir_path,
-            logger=self._logger,
         )
 
     @property
@@ -102,13 +100,8 @@ class LarestMol(metaclass=ABCMeta):
 
     @smiles.setter
     def smiles(self, smiles: str) -> None:
-        try:
-            get_mol(smiles, self._logger)
-        except Exception as err:
-            self._logger.exception(err)
-            raise
-        else:
-            self._smiles = smiles
+        get_mol(smiles)  # validates SMILES, raises PolymerBuildError if invalid
+        self._smiles = smiles
 
     def run(self) -> None:
         """Run the LaREST pipeline for the molecule"""
@@ -141,21 +134,16 @@ class LarestMol(metaclass=ABCMeta):
     def _run_rdkit(self) -> None:
         # setup RDKit dir if not present
         rdkit_dir: Path = Path(self.dir_path, "rdkit")
-        create_dir(rdkit_dir, self._logger)
+        create_dir(rdkit_dir)
 
         self._logger.debug(
             "Generating conformers and computing energies using RDKit",
         )
-        try:
-            mol: Mol = AddHs(
-                get_mol(
-                    StandardizeSmiles(self.smiles),
-                    self._logger,
-                ),
-            )
-        except Exception as err:
-            self._logger.exception(err)
-            raise
+        mol: Mol = AddHs(
+            get_mol(
+                StandardizeSmiles(self.smiles),
+            ),
+        )
 
         n_conformers: int = self._config["rdkit"]["n_conformers"]
 
@@ -218,21 +206,11 @@ class LarestMol(metaclass=ABCMeta):
                     mol.SetDoubleProp("energy", energy)
                     writer.write(mol, confId=cid)
                 writer.close()
-        except Exception as err:
-            self._logger.exception(err)
+        except Exception:
             self._logger.exception(f"Failed to write RDKit conformers to {sdf_file}")
             raise
         else:
             self._logger.debug("Finished writing conformers and their energies")
-
-        # Write conformers to .xyz files
-        self._logger.debug(f"Getting conformer coordinates from {sdf_file}")
-        sdfstream: IOBase = open(sdf_file, "rb")
-        mol_supplier: ForwardSDMolSupplier = ForwardSDMolSupplier(
-            fileobj=sdfstream,
-            sanitize=False,
-            removeHs=False,
-        )
 
         # Running xTB for all conformers
         self._logger.debug("Computing thermodynamic parameters of conformers using xTB")
@@ -240,68 +218,75 @@ class LarestMol(metaclass=ABCMeta):
         xtb_default_args: list[str] = parse_command_args(
             sub_config=["xtb"],
             config=self._config,
-            logger=self._logger,
         )
 
-        for conformer in mol_supplier:
-            # Conformer id and location of xyz file
-            conformer_id: int = conformer.GetIntProp("conformer_id")
-            conformer_xyz_file: Path = Path(
-                rdkit_dir,
-                f"conformer_{conformer_id}.xyz",
+        self._logger.debug(f"Getting conformer coordinates from {sdf_file}")
+        with open(sdf_file, "rb") as sdfstream:
+            mol_supplier: ForwardSDMolSupplier = ForwardSDMolSupplier(
+                fileobj=sdfstream,
+                sanitize=False,
+                removeHs=False,
             )
 
-            try:
-                MolToXYZFile(
-                    mol=mol,
-                    filename=conformer_xyz_file,
-                    precision=self._config["rdkit"]["precision"],
+            for conformer in mol_supplier:
+                # Conformer id and location of xyz file
+                conformer_id: int = conformer.GetIntProp("conformer_id")
+                conformer_xyz_file: Path = Path(
+                    rdkit_dir,
+                    f"conformer_{conformer_id}.xyz",
                 )
-            except Exception as err:
-                self._logger.exception(err)
-                self._logger.exception(
-                    f"Failed to write conformer coordinates to {conformer_xyz_file}",
+
+                try:
+                    MolToXYZFile(
+                        mol=mol,
+                        filename=str(conformer_xyz_file),
+                        confId=conformer_id,
+                        precision=self._config["rdkit"]["precision"],
+                    )
+                except Exception:
+                    self._logger.exception(
+                        f"Failed to write conformer coordinates to {conformer_xyz_file}",
+                    )
+                    raise
+
+                # Creating output dir for xTB thermo calculation
+                xtb_dir: Path = Path(
+                    self.dir_path,
+                    "xtb",
+                    "rdkit",
+                    f"conformer_{conformer_id}",
                 )
-                raise
+                create_dir(xtb_dir)
 
-            # Creating output dir for xTB thermo calculation
-            xtb_dir: Path = Path(
-                self.dir_path,
-                "xtb",
-                "rdkit",
-                f"conformer_{conformer_id}",
-            )
-            create_dir(xtb_dir, self._logger)
-
-            # Specify location for xtb log file
-            xtb_output_file: Path = Path(
-                xtb_dir,
-                f"conformer_{conformer_id}.txt",
-            )
-
-            # Optimisation with xTB
-            xtb_conformer_args: list[str] = [
-                "xtb",
-                str(conformer_xyz_file.absolute()),
-                "--namespace",
-                f"conformer_{conformer_id}",
-            ]
-            xtb_args: list[str] = xtb_conformer_args + xtb_default_args
-
-            try:
-                with open(xtb_output_file, "w") as fstream:
-                    subprocess.Popen(
-                        args=xtb_args,
-                        stdout=fstream,
-                        stderr=subprocess.STDOUT,
-                        cwd=xtb_dir,
-                    ).wait()
-            except Exception as err:
-                self._logger.exception(err)
-                self._logger.exception(
-                    f"Failed to run xTB command with arguments {xtb_args}",
+                # Specify location for xtb log file
+                xtb_output_file: Path = Path(
+                    xtb_dir,
+                    f"conformer_{conformer_id}.txt",
                 )
-        sdfstream.close()
+
+                # Optimisation with xTB
+                xtb_conformer_args: list[str] = [
+                    "xtb",
+                    str(conformer_xyz_file.absolute()),
+                    "--namespace",
+                    f"conformer_{conformer_id}",
+                ]
+                xtb_args: list[str] = xtb_conformer_args + xtb_default_args
+
+                try:
+                    with open(xtb_output_file, "w") as fstream:
+                        subprocess.run(
+                            xtb_args,
+                            stdout=fstream,
+                            stderr=subprocess.STDOUT,
+                            cwd=xtb_dir,
+                            check=True,
+                        )
+                except Exception:
+                    self._logger.exception(
+                        f"Failed to run xTB for conformer {conformer_id}",
+                    )
+
         self._logger.debug("Finished running xTB on conformers")
 
         self._logger.debug("Compiling results of xTB computations")
@@ -323,7 +308,6 @@ class LarestMol(metaclass=ABCMeta):
                 xtb_output = parse_xtb_output(
                     xtb_output_file=xtb_output_file,
                     temperature=self._config["xtb"]["etemp"],
-                    logger=self._logger,
                 )
             except Exception:
                 self._logger.exception(
@@ -360,7 +344,7 @@ class LarestMol(metaclass=ABCMeta):
         Subsequently performing thermo calculations using xTB on best conformer (if desired).
         """
         crest_dir: Path = Path(self.dir_path, "crest_confgen")
-        create_dir(crest_dir, self._logger)
+        create_dir(crest_dir)
 
         xtb_rdkit_dir: Path = Path(self.dir_path, "xtb", "rdkit")
         xtb_rdkit_results_file: Path = Path(
@@ -393,20 +377,19 @@ class LarestMol(metaclass=ABCMeta):
         crest_args += parse_command_args(
             sub_config=["crest", "confgen"],
             config=self._config,
-            logger=self._logger,
         )
 
         try:
             with open(crest_output_file, "w") as fstream:
-                subprocess.Popen(
-                    args=crest_args,
+                subprocess.run(
+                    crest_args,
                     stdout=fstream,
                     stderr=subprocess.STDOUT,
                     cwd=crest_dir,
-                ).wait()
-        except Exception as err:
-            self._logger.exception(err)
-            self._logger.exception(f"Failed to run CREST with arguments {crest_args}")
+                    check=True,
+                )
+        except Exception:
+            self._logger.exception("Failed to run CREST confgen")
             raise
 
         if self._config["steps"]["xtb"]:
@@ -415,7 +398,7 @@ class LarestMol(metaclass=ABCMeta):
                 "crest_best.xyz",
             )
             xtb_dir: Path = Path(self.dir_path, "xtb", "crest")
-            create_dir(xtb_dir, self._logger)
+            create_dir(xtb_dir)
             xtb_results: dict[str, float | None] = self._run_xtb(
                 xtb_input_file=best_crest_conformer_xyz_file,
                 xtb_dir=xtb_dir,
@@ -428,20 +411,17 @@ class LarestMol(metaclass=ABCMeta):
         """
         Running CENSO to DFT refine the conformer ensemble from CREST conformer generation.
         """
+        temp_config_dir: Path = Path(self._args.config, "temp")
 
         # create .censo2rc for run
-        create_censorc(config=self._config, logger=self._logger)
+        create_censorc(config=self._config, temp_dir=temp_config_dir)
 
         censo_dir: Path = Path(self.dir_path, "censo")
-        create_dir(censo_dir, self._logger)
+        create_dir(censo_dir)
 
         # specify location for censo log file
         censo_output_file: Path = Path(censo_dir, "censo.txt")
-        censo_config_file: Path = Path(
-            self._args.config,
-            "temp",
-            ".censo2rc",
-        )
+        censo_config_file: Path = temp_config_dir / ".censo2rc"
 
         # specify location for crest conformers file
         crest_conformers_file: Path = Path(
@@ -461,25 +441,23 @@ class LarestMol(metaclass=ABCMeta):
         censo_args += parse_command_args(
             sub_config=["censo", "cli"],
             config=self._config,
-            logger=self._logger,
         )
         try:
             with open(censo_output_file, "w") as fstream:
-                subprocess.Popen(
-                    args=censo_args,
+                subprocess.run(
+                    censo_args,
                     stdout=fstream,
                     stderr=subprocess.STDOUT,
                     cwd=censo_dir,
-                ).wait()
-        except Exception as err:
-            self._logger.exception(err)
-            self._logger.exception(f"Failed to run CENSO with arguments {censo_args}")
+                    check=True,
+                )
+        except Exception:
+            self._logger.exception("Failed to run CENSO")
             raise
 
         censo_results: dict[str, dict[str, float | None]] = parse_censo_output(
             censo_output_file=censo_output_file,
             temperature=self._config["censo"]["general"]["temperature"],
-            logger=self._logger,
         )
 
         censo_results_file: Path = Path(
@@ -515,30 +493,26 @@ class LarestMol(metaclass=ABCMeta):
         xtb_args += parse_command_args(
             sub_config=["xtb"],
             config=self._config,
-            logger=self._logger,
         )
 
         xtb_output_file: Path = Path(xtb_dir, "xtb.txt")
         try:
             with open(xtb_output_file, "w") as fstream:
-                subprocess.Popen(
-                    args=xtb_args,
+                subprocess.run(
+                    xtb_args,
                     stdout=fstream,
                     stderr=subprocess.STDOUT,
                     cwd=xtb_dir,
-                ).wait()
-        except Exception as err:
-            self._logger.exception(err)
-            self._logger.exception(
-                f"Failed to run xTB with arguments {xtb_args}",
-            )
+                    check=True,
+                )
+        except Exception:
+            self._logger.exception("Failed to run xTB")
             raise
 
         try:
             xtb_results: dict[str, float | None] = parse_xtb_output(
                 xtb_output_file=xtb_output_file,
                 temperature=self._config["xtb"]["etemp"],
-                logger=self._logger,
             )
         except Exception:
             self._logger.exception(
@@ -578,23 +552,20 @@ class LarestMol(metaclass=ABCMeta):
         try:
             best_censo_conformer: str = parse_best_censo_conformers(
                 censo_output_file=censo_output_file,
-                logger=self._logger,
             )["3_REFINEMENT"]
             extract_best_conformer_xyz(
                 censo_conformers_xyz_file=censo_conformers_xyz_file,
                 best_conformer_id=best_censo_conformer,
                 output_xyz_file=best_censo_conformer_xyz_file,
-                logger=self._logger,
             )
         except Exception as err:
-            self._logger.exception(err)
             raise NoResultsError(
                 "Failed to extract best CENSO conformer for crest_entropy",
             ) from err
 
         # setup crest_entropy directory
         crest_dir: Path = Path(self.dir_path, "crest_entropy")
-        create_dir(crest_dir, self._logger)
+        create_dir(crest_dir)
 
         # specify location for crest log file
         crest_output_file: Path = crest_dir / "crest.txt"
@@ -607,25 +578,23 @@ class LarestMol(metaclass=ABCMeta):
         crest_args += parse_command_args(
             sub_config=["crest", "entropy"],
             config=self._config,
-            logger=self._logger,
         )
 
         try:
             with open(crest_output_file, "w") as fstream:
-                subprocess.Popen(
-                    args=crest_args,
+                subprocess.run(
+                    crest_args,
                     stdout=fstream,
                     stderr=subprocess.STDOUT,
                     cwd=crest_dir,
-                ).wait()
-        except Exception as err:
-            self._logger.exception(err)
-            self._logger.exception(f"Failed to run CREST with arguments {crest_args}")
+                    check=True,
+                )
+        except Exception:
+            self._logger.exception("Failed to run CREST entropy")
             raise
 
         crest_results: dict[str, float | None] = parse_crest_entropy_output(
             crest_output_file=crest_output_file,
-            logger=self._logger,
         )
 
         if self._config["steps"]["censo"]:
@@ -670,23 +639,16 @@ class LarestMol(metaclass=ABCMeta):
     def _setup_pipeline(self) -> None:
         # Create temp dirs
         temp_config_dir: Path = Path(self._args.config, "temp")
-        create_dir(temp_config_dir, self._logger)
-        self._config["temp_config_dir"] = temp_config_dir
+        create_dir(temp_config_dir)
 
     def _cleanup_pipeline(self) -> None:
         # Remove temp dirs
         temp_config_dir: Path = Path(self._args.config, "temp")
-        remove_dir(temp_config_dir, self._logger)
+        remove_dir(temp_config_dir)
 
 
 class Initiator(LarestMol):
-    def __init__(
-        self,
-        smiles: str,
-        args: Namespace,
-        config: dict[str, Any],
-    ) -> None:
-        super().__init__(smiles=smiles, args=args, config=config)
+    pass
 
 
 class Polymer(LarestMol):
@@ -713,7 +675,6 @@ class Polymer(LarestMol):
                 polymer_length=self._length,
                 reaction_type=self._config["reaction"]["type"],
                 config=self._config,
-                logger=self._logger,
             )
         except Exception:
             self._logger.exception("Failed to build polymer smiles")
@@ -731,18 +692,17 @@ class Polymer(LarestMol):
 
 
 class Monomer(LarestMol):
-    _initiator: Initiator
+    _initiator: Initiator | None
     _polymers: list[Polymer]
 
     @property
     def ring_size(self) -> int | None:
         return get_ring_size(
             smiles=self.smiles,
-            logger=self._logger,
         )
 
     @property
-    def initiator(self) -> Initiator:
+    def initiator(self) -> Initiator | None:
         return self._initiator
 
     @property
@@ -757,10 +717,14 @@ class Monomer(LarestMol):
     ) -> None:
         super().__init__(smiles=smiles, args=args, config=config)
 
-        self._initiator = Initiator(
-            smiles=config["reaction"]["initiator"],
-            args=self._args,
-            config=self._config,
+        self._initiator = (
+            Initiator(
+                smiles=config["reaction"]["initiator"],
+                args=self._args,
+                config=self._config,
+            )
+            if config["reaction"]["type"] == "ROR"
+            else None
         )
         self._polymers = [
             Polymer(
@@ -775,17 +739,17 @@ class Monomer(LarestMol):
     # TODO: this function needs logging
     def compile_results(self) -> None:
         summary_dir: Path = self.dir_path / "summary"
-        create_dir(summary_dir, self._logger)
+        create_dir(summary_dir)
+
+        # creating headings for final summary csv
+        summary_headings: list[str] = ["polymer_length"]
+        for mol_type in ["monomer", "initiator", "polymer"]:
+            summary_headings.extend(
+                [f"{mol_type}_{param}" for param in THERMODYNAMIC_PARAMS],
+            )
 
         # iterating over pipeline sections
         for section in self._results:
-            # creating headings for final summary csv
-            summary_headings: list[str] = ["polymer_length"]
-            for mol_type in ["monomer", "initiator", "polymer"]:
-                summary_headings.extend(
-                    [f"{mol_type}_{param}" for param in THERMODYNAMIC_PARAMS],
-                )
-
             # final summary table
             summary: dict[str, list[float | None]] = {
                 heading: [] for heading in summary_headings

@@ -1,4 +1,6 @@
-from logging import Logger
+from __future__ import annotations
+
+import logging
 from typing import Any, Literal
 
 from rdkit.Chem.rdchem import Atom, BondType, EditableMol, Mol, RingInfo
@@ -15,16 +17,16 @@ from rdkit.Chem.rdmolops import (
 from larest.constants import INITIATOR_GROUPS, MONOMER_GROUPS
 from larest.exceptions import PolymerBuildError
 
+logger = logging.getLogger(__name__)
 
-def get_mol(smiles: str, logger: Logger) -> Mol:
+
+def get_mol(smiles: str) -> Mol:
     """Get an RDKit Mol object from a SMILES string
 
     Parameters
     ----------
     smiles : str
         Input SMILES string of the molecule
-    logger : Logger
-        Logger for LaREST run
 
     Returns
     -------
@@ -41,15 +43,13 @@ def get_mol(smiles: str, logger: Logger) -> Mol:
     return mol
 
 
-def get_ring_size(smiles: str, logger: Logger) -> int | None:
+def get_ring_size(smiles: str) -> int | None:
     """Get the ring size of the monomer with the specified SMILES
 
     Parameters
     ----------
     smiles : str
         Input SMILES string of the molecule
-    logger : Logger
-        Logger for LaREST run
 
     Returns
     -------
@@ -58,7 +58,7 @@ def get_ring_size(smiles: str, logger: Logger) -> int | None:
 
     """
     try:
-        mol: Mol = get_mol(smiles, logger)
+        mol: Mol = get_mol(smiles)
     except PolymerBuildError:
         logger.exception(f"Failed to get ring size for SMILES: {smiles}")
         raise
@@ -85,7 +85,6 @@ def get_polymer_unit(
     mol_type: Literal["monomer", "initiator"],
     front_dummy: str,
     back_dummy: str,
-    logger: Logger,
 ) -> Mol:
     """Get singular polymer build unit, constructed from the monomer/initiator
 
@@ -99,8 +98,6 @@ def get_polymer_unit(
         Front dummy atom used to attach to the polymer chain
     back_dummy : str
         Back dummy atom used to attach to the polymer chain
-    logger : Logger
-        Logger for the LaREST run
 
     Returns
     -------
@@ -195,13 +192,12 @@ def get_polymer_unit(
             endAtomIdx=emol.AddAtom(back_dummy_atom),
             order=BondType.SINGLE,
         )
-    except Exception as err:
-        logger.exception(err)
+    except Exception:
         logger.exception(f"Failed to edit {mol_type} unit {MolToSmiles(emol.GetMol())}")
         raise
-    else:
-        logger.debug(f"Created polymer unit {MolToSmiles(emol.GetMol())}")
-        return emol.GetMol()
+
+    logger.debug(f"Created polymer unit {MolToSmiles(emol.GetMol())}")
+    return emol.GetMol()
 
 
 def build_polymer(
@@ -209,7 +205,6 @@ def build_polymer(
     polymer_length: int,
     reaction_type: Literal["ROR", "RER"],
     config: dict[str, Any],
-    logger: Logger,
 ) -> str:
     if polymer_length <= 1 and reaction_type == "RER":
         raise PolymerBuildError(
@@ -234,7 +229,6 @@ def build_polymer(
             mol_type="monomer",
             front_dummy="Xe",
             back_dummy="Y",
-            logger=logger,
         )
     except Exception:
         logger.exception(f"Failed to create monomer unit from SMILES: {monomer_smiles}")
@@ -252,13 +246,11 @@ def build_polymer(
             mol_type="monomer",
             front_dummy=front_dummy,
             back_dummy=back_dummy,
-            logger=logger,
         )
         mol_zip_params.setAtomSymbols([front_dummy])
         try:
             polymer = molzip(polymer, repeating_unit, mol_zip_params)
-        except Exception as err:
-            logger.exception(err)
+        except Exception:
             logger.exception(
                 f"Failed to zip polymer units together: {MolToSmiles(polymer)} {MolToSmiles(repeating_unit)}",
             )
@@ -278,7 +270,6 @@ def build_polymer(
                     mol_type="initiator",
                     front_dummy="Xe",
                     back_dummy=front_dummy,
-                    logger=logger,
                 )
             case "RER":
                 terminal_unit = get_polymer_unit(
@@ -286,7 +277,6 @@ def build_polymer(
                     mol_type="monomer",
                     front_dummy=front_dummy,
                     back_dummy="Xe",
-                    logger=logger,
                 )
     except Exception:
         logger.exception(
@@ -306,14 +296,13 @@ def build_polymer(
                 )
             case "RER":
                 polymer = molzip(polymer, terminal_unit, mol_zip_params)
-    except Exception as err:
-        logger.exception(err)
+    except Exception:
         logger.exception(
             f"Failed to zip polymer and terminal unit together: {MolToSmiles(polymer)} {MolToSmiles(terminal_unit)}",
         )
         raise
-    else:
-        logger.info(
-            f"Finished building {reaction_type} polymer: {MolToSmiles(polymer)}",
-        )
+
+    logger.info(
+        f"Finished building {reaction_type} polymer: {MolToSmiles(polymer)}",
+    )
     return MolToSmiles(polymer)

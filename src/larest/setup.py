@@ -6,7 +6,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from larest.output import create_dir
+logger = logging.getLogger(__name__)
 
 
 def get_config(args: argparse.Namespace) -> dict[str, Any]:
@@ -74,7 +74,7 @@ def get_logger(
 
 def create_censorc(
     config: dict[str, Any],
-    logger: logging.Logger,
+    temp_dir: Path,
 ) -> None:
     """Create censorc for LaREST run using specified config options
 
@@ -82,18 +82,17 @@ def create_censorc(
     ----------
     config : dict[str, Any]
         Config for LaREST run
-    logger : logging.Logger
-        Logger for LaREST run
+    temp_dir : Path
+        Directory in which to write the .censo2rc file
 
     """
     try:
         censo_config: dict[str, Any] = config["censo"]
-    except Exception as err:
-        logger.exception(err)
-        logger.exception(f"Failed to load censo config from {config}")
+    except KeyError:
+        logger.exception("Failed to load censo config")
         raise
 
-    censorc_file: Path = config["temp_config_dir"] / ".censo2rc"
+    censorc_file: Path = temp_dir / ".censo2rc"
 
     # write new .censo2rc using config options
     try:
@@ -104,9 +103,8 @@ def create_censorc(
                     f"{key} = {value}\n" for key, value in sub_config.items()
                 )
                 fstream.write("\n")
-    except Exception as err:
-        logger.exception(err)
-        logger.exception(f"Failed to create censo config file from {censo_config}")
+    except Exception:
+        logger.exception(f"Failed to create censo config file at {censorc_file}")
         raise
     else:
         logger.debug(f"Created censo config file at {censorc_file}")

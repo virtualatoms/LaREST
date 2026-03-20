@@ -1,27 +1,20 @@
-import os
+import logging
 import re
 import shutil
 import unicodedata
-from logging import Logger
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
 
-def create_dir(dir_path: Path, logger: Logger) -> None:
-    # create specified dir
+
+def create_dir(dir_path: Path) -> None:
     logger.debug(f"Creating directory: {dir_path}")
-
-    try:
-        os.makedirs(dir_path, exist_ok=False)
-    except FileExistsError:
-        logger.warning(f"Directory {dir_path} already exists")
-    else:
-        logger.debug(f"Directory {dir_path} created")
+    dir_path.mkdir(parents=True, exist_ok=True)
+    logger.debug(f"Directory {dir_path} created")
 
 
-def remove_dir(dir_path: Path, logger: Logger) -> None:
-    # remove specified dir
+def remove_dir(dir_path: Path) -> None:
     logger.debug(f"Removing directory: {dir_path}")
-
     try:
         shutil.rmtree(dir_path, ignore_errors=False)
     except Exception:
