@@ -54,18 +54,11 @@ def parse_command_args(sub_config: list[str], config: dict[str, Any]) -> list[st
 
 def create_censorc(config: dict[str, Any], temp_dir: Path) -> None:
     censorc_file = temp_dir / ".censo2rc"
-    try:
-        censo_config: dict[str, Any] = config["censo"]
-    except KeyError:
-        raise
+    censo_config: dict[str, Any] = config["censo"]
 
-    try:
-        with open(censorc_file, "w") as fstream:
-            for header, sub_config in censo_config.items():
-                fstream.write(f"[{header}]\n")
-                fstream.writelines(f"{key} = {value}\n" for key, value in sub_config.items())
-                fstream.write("\n")
-    except Exception:
-        raise
-    else:
-        logger.debug(f"Created censo config file at {censorc_file}")
+    with open(censorc_file, "w") as fstream:
+        for header, sub_config in censo_config.items():
+            fstream.write(f"[{header}]\n")
+            fstream.writelines(f"{key} = {value}\n" for key, value in sub_config.items())
+            fstream.write("\n")
+    logger.debug(f"Created censo config file at {censorc_file}")

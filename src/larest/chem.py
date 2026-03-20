@@ -170,24 +170,20 @@ def get_polymer_unit(
 
     # creating an editable Mol
     emol: EditableMol = EditableMol(mol)
-    try:
-        # breaking functional group bond
-        emol.RemoveBond(*fg_atom_idx)
-        # adding front dummy to first fg group atom
-        emol.AddBond(
-            beginAtomIdx=fg_atom_idx[0],
-            endAtomIdx=emol.AddAtom(front_dummy_atom),
-            order=BondType.SINGLE,
-        )
-        # adding back dummy to second fg group atom
-        emol.AddBond(
-            beginAtomIdx=fg_atom_idx[1],
-            endAtomIdx=emol.AddAtom(back_dummy_atom),
-            order=BondType.SINGLE,
-        )
-    except Exception:
-        logger.exception(f"Failed to edit {mol_type} unit {MolToSmiles(emol.GetMol())}")
-        raise
+    # breaking functional group bond
+    emol.RemoveBond(*fg_atom_idx)
+    # adding front dummy to first fg group atom
+    emol.AddBond(
+        beginAtomIdx=fg_atom_idx[0],
+        endAtomIdx=emol.AddAtom(front_dummy_atom),
+        order=BondType.SINGLE,
+    )
+    # adding back dummy to second fg group atom
+    emol.AddBond(
+        beginAtomIdx=fg_atom_idx[1],
+        endAtomIdx=emol.AddAtom(back_dummy_atom),
+        order=BondType.SINGLE,
+    )
 
     logger.debug(f"Created polymer unit {MolToSmiles(emol.GetMol())}")
     return emol.GetMol()
