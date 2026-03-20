@@ -45,8 +45,8 @@ Each molecule passes through up to four stages, controlled by `[steps]` in confi
 
 1. **rdkit** — Generate MMFF conformers, rank by xTB free energy (`G`)
 2. **crest_confgen** — Conformer/rotamer ensemble via CREST v3 from best RDKit conformer, xTB re-ranking
-3. **censo** — DFT refinement of CREST ensemble via CENSO (4 sub-stages: `0_PRESCREENING` → `1_SCREENING` → `2_OPTIMIZATION` → `3_REFINEMENT`), using ORCA as the QM backend
-4. **crest_entropy** — Conformational entropy via CREST entropy mode; adds `censo_corrected` result by applying CREST entropy correction to `3_REFINEMENT` results
+3. **censo** — DFT refinement of CREST ensemble via CENSO (4 sub-stages: `censo_prescreening` → `censo_screening` → `censo_optimization` → `censo_refinement`), using ORCA as the QM backend
+4. **crest_entropy** — Conformational entropy via CREST entropy mode; adds `censo_corrected` result by applying CREST entropy correction to `censo_refinement` results
 
 ### Molecule dataclasses (`src/larest/data.py`)
 
@@ -54,7 +54,7 @@ Molecules are simple dataclasses with no shared base class:
 - `Monomer` — the lactone monomer (`smiles: str`)
 - `Polymer` — polymer chain at a given length (`smiles`, `monomer_smiles`, `length`); SMILES is built on-the-fly via `build_polymer()` in `chem.py`
 - `Initiator` — the initiating alcohol for ROR reactions (`smiles: str`)
-- `MolResults` — holds results for one molecule: `smiles` and `sections: dict[str, dict[str, float|None]]` where sections are `rdkit`, `crest`, `0_PRESCREENING`, ..., `3_REFINEMENT`, `censo_corrected` and params are `H`, `S`, `G`
+- `MolResults` — holds results for one molecule: `smiles` and `sections: dict[str, dict[str, float|None]]` where sections are `rdkit`, `crest`, `censo_prescreening`, ..., `censo_refinement`, `censo_corrected` and params are `H`, `S`, `G`
 
 ### Checkpointing (`src/larest/checkpoint.py`)
 

@@ -58,7 +58,7 @@ def entry_point() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        get_logger(output_dir=output_dir, config=config)
+        get_logger(output_dir=output_dir, config=config, verbose=args.verbose)
     except Exception as err:
         raise SystemExit(1) from err
 

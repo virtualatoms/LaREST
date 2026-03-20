@@ -6,7 +6,7 @@ and the first stage that has not yet been completed.  This allows interrupted
 runs to resume from exactly where they left off without re-executing earlier
 stages.
 
-:func:`apply_entropy_correction` combines CENSO ``3_REFINEMENT`` enthalpy /
+:func:`apply_entropy_correction` combines CENSO ``censo_refinement`` enthalpy /
 free-energy values with the conformational entropy obtained from a CREST
 entropy run, producing the ``censo_corrected`` section stored alongside the
 other thermodynamic sections.
@@ -156,14 +156,14 @@ def apply_entropy_correction(
 ) -> dict[str, dict[str, float | None]]:
     """Apply a CREST conformational entropy correction to CENSO refinement results.
 
-    Combines the enthalpy and free energy from the CENSO ``3_REFINEMENT`` stage
+    Combines the enthalpy and free energy from the CENSO ``censo_refinement`` stage
     with the total conformational entropy from a CREST entropy calculation to
     produce a corrected thermodynamic section (``"censo_corrected"``).
 
     Parameters
     ----------
     refinement_results : dict[str, float | None]
-        Thermodynamic parameters from the ``3_REFINEMENT`` CENSO stage, keyed
+        Thermodynamic parameters from the ``censo_refinement`` CENSO stage, keyed
         by ``"H"``, ``"S"``, and ``"G"``.
     crest_entropy_results : dict[str, float | None]
         Entropy parameters from the CREST entropy run, keyed by
@@ -194,10 +194,10 @@ def _parse_crest_entropy(results: dict, path: Path) -> None:
     Parameters
     ----------
     results : dict
-        Shared results dict; must already contain a ``"3_REFINEMENT"`` section.
+        Shared results dict; must already contain a ``"censo_refinement"`` section.
         Updated in-place with a ``"censo_corrected"`` section.
     path : Path
         Path to the CREST entropy ``results.json`` file.
     """
     crest_entropy_results: dict[str, float | None] = json.loads(path.read_text())
-    results.update(apply_entropy_correction(results["3_REFINEMENT"], crest_entropy_results))
+    results.update(apply_entropy_correction(results["censo_refinement"], crest_entropy_results))

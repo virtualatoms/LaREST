@@ -113,7 +113,7 @@ def run_crest_entropy(
 ) -> dict[str, float | None]:
     """Run CREST in entropy mode using the best CENSO conformer.
 
-    Extracts the highest-ranked CENSO ``3_REFINEMENT`` conformer to an XYZ
+    Extracts the highest-ranked CENSO ``censo_refinement`` conformer to an XYZ
     file, runs CREST entropy mode on it, parses the output, writes
     ``results.json``, and returns the conformational entropy values.
 
@@ -121,7 +121,7 @@ def run_crest_entropy(
     ----------
     dir_path : Path
         Root molecule output directory.  Must contain ``censo/censo.txt`` and
-        ``censo/3_REFINEMENT.xyz`` from a completed CENSO stage.
+        ``censo/3_REFINEMENT.xyz`` (as produced by CENSO) from a completed CENSO stage.
     config : dict[str, Any]
         Full pipeline configuration dict.  Uses the ``[crest][entropy]``
         sub-section.
@@ -145,7 +145,7 @@ def run_crest_entropy(
     try:
         best_censo_conformer = parse_best_censo_conformers(
             censo_output_file=censo_dir / "censo.txt",
-        )["3_REFINEMENT"]
+        )["censo_refinement"]
         extract_best_conformer_xyz(
             censo_conformers_xyz_file=censo_dir / "3_REFINEMENT.xyz",
             best_conformer_id=best_censo_conformer,

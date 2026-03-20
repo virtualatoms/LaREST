@@ -59,7 +59,7 @@ class MolResults:
     smiles : str
         SMILES string of the molecule.
     sections : dict[str, dict[str, float | None]]
-        Mapping of pipeline section name (e.g. ``"rdkit"``, ``"3_REFINEMENT"``)
+        Mapping of pipeline section name (e.g. ``"rdkit"``, ``"censo_refinement"``)
         to a dict of thermodynamic parameters (``"H"``, ``"S"``, ``"G"``).
         Values are ``None`` where a parameter could not be computed.
     """

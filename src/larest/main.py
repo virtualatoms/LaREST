@@ -80,7 +80,7 @@ def run_pipeline(
     if config["steps"]["crest_entropy"] and stage <= PipelineStage.CREST_ENTROPY:
         crest_entropy_results = run_crest_entropy(dir_path, config)
         if config["steps"]["censo"]:
-            results |= apply_entropy_correction(results["3_REFINEMENT"], crest_entropy_results)
+            results |= apply_entropy_correction(results["censo_refinement"], crest_entropy_results)
 
     results_file = dir_path / "results.json"
     logger.debug(f"Writing final results to {results_file}")

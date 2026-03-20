@@ -19,7 +19,7 @@ def plot_ring_size_enthalpy(
     # get computational results
     results_file: Path = Path(
         "./data",
-        "3_REFINEMENT_H.csv",
+        "censo_refinement_H.csv",
     )
     results: pd.DataFrame = pd.read_csv(results_file)
 
@@ -117,7 +117,7 @@ def plot_ring_size_entropy(
 
     for section_idx, section_name in enumerate(
         [
-            "3_REFINEMENT",
+            "censo_refinement",
             "censo_corrected",
         ],
     ):

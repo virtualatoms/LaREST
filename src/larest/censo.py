@@ -3,10 +3,10 @@
 Wraps the CENSO (Conformer Ensemble Sorting) program, which performs four
 sequential sub-stages of increasing DFT accuracy:
 
-0. ``0_PRESCREENING`` — fast pre-screening of the CREST ensemble
-1. ``1_SCREENING``    — singlepoint DFT screening
-2. ``2_OPTIMIZATION`` — DFT geometry optimisation
-3. ``3_REFINEMENT``   — high-accuracy single-point refinement
+0. ``censo_prescreening`` — fast pre-screening of the CREST ensemble
+1. ``censo_screening``    — singlepoint DFT screening
+2. ``censo_optimization`` — DFT geometry optimisation
+3. ``censo_refinement``   — high-accuracy single-point refinement
 
 Thermodynamic parameters (H, G) are extracted from the CENSO output at each
 sub-stage, and entropy is derived as S = (H - G) / T.
@@ -83,7 +83,7 @@ def run_censo(
     -------
     dict[str, dict[str, float | None]]
         Mapping of CENSO sub-stage name to thermodynamic parameter dict, e.g.
-        ``{"0_PRESCREENING": {"H": ..., "S": ..., "G": ...}, ...}``.
+        ``{"censo_prescreening": {"H": ..., "S": ..., "G": ...}, ...}``.
 
     Raises
     ------
@@ -150,8 +150,8 @@ def parse_censo_output(
     Returns
     -------
     dict[str, dict[str, float | None]]
-        Nested dict mapping each CENSO section (``"0_PRESCREENING"``,
-        ``"1_SCREENING"``, ``"2_OPTIMIZATION"``, ``"3_REFINEMENT"``) to a
+        Nested dict mapping each CENSO section (``"censo_prescreening"``,
+        ``"censo_screening"``, ``"censo_optimization"``, ``"censo_refinement"``) to a
         thermodynamic parameter dict with keys ``"H"``, ``"S"``, ``"G"``
         (J/mol).  A value is ``None`` if it could not be extracted.
     """
@@ -212,7 +212,7 @@ def parse_best_censo_conformers(
     -------
     dict[str, str]
         Mapping of CENSO section name to the ID of the top-ranked conformer
-        in that section, e.g. ``{"3_REFINEMENT": "CONF5", ...}``.
+        in that section, e.g. ``{"censo_refinement": "CONF5", ...}``.
     """
     best_censo_conformers: dict[str, str] = dict.fromkeys(CENSO_SECTIONS, "CONF0")
 
@@ -258,7 +258,7 @@ def extract_best_conformer_xyz(
     Parameters
     ----------
     censo_conformers_xyz_file : Path
-        Path to the multi-conformer XYZ file (e.g. ``3_REFINEMENT.xyz``).
+        Path to the multi-conformer XYZ file (e.g. ``3_REFINEMENT.xyz`` as produced by CENSO).
     best_conformer_id : str
         Conformer label to search for (e.g. ``"CONF5"``).  The search looks
         for this string in the comment line of each XYZ block.

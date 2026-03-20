@@ -112,7 +112,7 @@ def get_config(config_file: Path) -> dict[str, Any]:
     return _apply_parallelisation(config, user_config)
 
 
-def get_logger(output_dir: Path, config: dict[str, Any]) -> None:
+def get_logger(output_dir: Path, config: dict[str, Any], verbose: bool = False) -> None:
     """Configure the Python logging system from the ``[logging]`` config section.
 
     Deep-copies the logging sub-config before patching the file handler's
@@ -139,6 +139,8 @@ def get_logger(output_dir: Path, config: dict[str, Any]) -> None:
         log_config["handlers"]["file"]["filename"] = str(
             (output_dir / log_config["handlers"]["file"]["filename"]).resolve()
         )
+        if verbose:
+            log_config["handlers"]["stream"]["level"] = "DEBUG"
         logging.config.dictConfig(log_config)
     except Exception:
         print(f"Failed to setup logging config from {log_config}")

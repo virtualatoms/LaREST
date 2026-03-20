@@ -39,27 +39,27 @@ THERMODYNAMIC_PARAMS: list[str] = [
 ]
 
 CENSO_SECTIONS: list[str] = [
-    "0_PRESCREENING",
-    "1_SCREENING",
-    "2_OPTIMIZATION",
-    "3_REFINEMENT",
+    "censo_prescreening",
+    "censo_screening",
+    "censo_optimization",
+    "censo_refinement",
 ]
 PIPELINE_SECTIONS: list[str] = [
     "rdkit",
     "crest",
-    "0_PRESCREENING",
-    "1_SCREENING",
-    "2_OPTIMIZATION",
-    "3_REFINEMENT",
+    "censo_prescreening",
+    "censo_screening",
+    "censo_optimization",
+    "censo_refinement",
 ]
 ENTHALPY_PLOTTING_SECTIONS: list[str] = [
     "rdkit",
     "crest",
-    "3_REFINEMENT",
+    "censo_refinement",
 ]
 ENTROPY_PLOTTING_SECTIONS: list[str] = [
     "rdkit",
     "crest",
-    "3_REFINEMENT",
+    "censo_refinement",
     "censo_corrected",
 ]

@@ -197,7 +197,7 @@ output/
     summary/
       rdkit.csv               # ΔH, ΔS, ΔG vs polymer length (RDKit level)
       crest.csv               # ΔH, ΔS, ΔG vs polymer length (CREST level)
-      3_REFINEMENT.csv        # ΔH, ΔS, ΔG vs polymer length (DFT level)
+      censo_refinement.csv    # ΔH, ΔS, ΔG vs polymer length (DFT level)
       censo_corrected.csv     # ΔH, ΔS, ΔG with CREST entropy correction
 
   Polymer/<smiles_slug>_<length>/
@@ -209,7 +209,7 @@ output/
   larest.log                  # full pipeline log
 ```
 
-The `summary/` CSVs are the primary output, containing per-polymer-length reaction thermodynamics (ΔH, ΔS, ΔG in J/mol) at each level of theory. The `censo_corrected` section combines CENSO `3_REFINEMENT` enthalpies with the CREST conformational entropy.
+The `summary/` CSVs are the primary output, containing per-polymer-length reaction thermodynamics (ΔH, ΔS, ΔG in J/mol) at each level of theory. The `censo_corrected` section combines CENSO `censo_refinement` enthalpies with the CREST conformational entropy.
 
 ## Tested versions
 

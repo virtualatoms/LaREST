@@ -191,7 +191,7 @@ copy_mo = true            # copy MO files between calculations
 retry_failed = true       # retry failed calculations
 
 [censo.prescreening]
-run = true                # enable prescreening step (0_PRESCREENING)
+run = true                # enable prescreening step (censo_prescreening)
 threshold = 4.0           # energy window threshold (kcal/mol)
 func = "pbe-d4"           # DFT functional
 basis = "def2-SV(P)"      # basis set
@@ -200,7 +200,7 @@ gfnv = "gfn2"             # GFN version for RRHO ["gfn1", "gfn2", "gfnff"]
 template = false          # use input template file
 
 [censo.screening]
-run = true                # enable screening step (1_SCREENING)
+run = true                # enable screening step (censo_screening)
 threshold = 3.0           # energy window threshold (kcal/mol)
 func = "r2scan-3c"        # DFT functional
 basis = "def2-TZVP"       # basis set
@@ -211,7 +211,7 @@ implicit = true           # use implicit solvation
 template = false          # use input template file
 
 [censo.optimization]
-run = true                # enable optimisation step (2_OPTIMIZATION)
+run = true                # enable optimisation step (censo_optimization)
 threshold = 2.0           # energy window threshold (kcal/mol)
 macrocycles = true        # use macrocycle optimisation
 optcycles = 4             # number of optimisation cycles per macrocycle
@@ -228,7 +228,7 @@ optlevel = "normal"       # optimisation convergence level ["crude", "loose", "n
 template = false          # use input template file
 
 [censo.refinement]
-run = true                # enable refinement step (3_REFINEMENT)
+run = true                # enable refinement step (censo_refinement)
 threshold = 1.0           # energy window threshold (kcal/mol)
 func = "wb97x-v"          # DFT functional
 basis = "def2-TZVP"       # basis set
