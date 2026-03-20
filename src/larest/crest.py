@@ -1,3 +1,14 @@
+"""CREST conformer generation and entropy calculation stages of the LaREST pipeline.
+
+This module wraps two separate CREST execution modes:
+
+* :func:`run_crest_confgen` — conformer/rotamer ensemble generation starting
+  from the best RDKit/xTB conformer, followed by optional xTB re-ranking of
+  the CREST best structure.
+* :func:`run_crest_entropy` — entropy-mode run using the best CENSO conformer
+  to obtain conformational entropy corrections (S_conf, S_rrho, S_total).
+"""
+
 from __future__ import annotations
 
 import json
@@ -20,6 +31,36 @@ def run_crest_confgen(
     dir_path: Path,
     config: dict[str, Any],
 ) -> dict[str, dict[str, float | None]]:
+    """Run CREST conformer generation from the best RDKit conformer.
+
+    Reads the best RDKit/xTB conformer, runs CREST to explore the conformer
+    and rotamer ensemble, then optionally re-ranks the CREST best structure
+    with xTB (controlled by ``config["steps"]["xtb"]``).
+
+    Parameters
+    ----------
+    dir_path : Path
+        Root molecule output directory.  Expected to contain
+        ``xtb/rdkit/results.csv`` and the corresponding optimised ``.xyz``
+        files from the RDKit stage.
+    config : dict[str, Any]
+        Full pipeline configuration dict.  Uses the ``[crest][confgen]`` and
+        ``[xtb]`` sub-sections.
+
+    Returns
+    -------
+    dict[str, dict[str, float | None]]
+        ``{"crest": {"H": ..., "S": ..., "G": ...}}`` if xTB re-ranking is
+        enabled, otherwise an empty dict.
+
+    Raises
+    ------
+    ValueError
+        If the best RDKit conformer ID cannot be determined from the results
+        CSV.
+    subprocess.CalledProcessError
+        If the CREST process exits with a non-zero return code.
+    """
     crest_dir = dir_path / "crest_confgen"
     create_dir(crest_dir)
 
@@ -70,6 +111,34 @@ def run_crest_entropy(
     dir_path: Path,
     config: dict[str, Any],
 ) -> dict[str, float | None]:
+    """Run CREST in entropy mode using the best CENSO conformer.
+
+    Extracts the highest-ranked CENSO ``3_REFINEMENT`` conformer to an XYZ
+    file, runs CREST entropy mode on it, parses the output, writes
+    ``results.json``, and returns the conformational entropy values.
+
+    Parameters
+    ----------
+    dir_path : Path
+        Root molecule output directory.  Must contain ``censo/censo.txt`` and
+        ``censo/3_REFINEMENT.xyz`` from a completed CENSO stage.
+    config : dict[str, Any]
+        Full pipeline configuration dict.  Uses the ``[crest][entropy]``
+        sub-section.
+
+    Returns
+    -------
+    dict[str, float | None]
+        Entropy values keyed by ``"S_conf"``, ``"S_rrho"``, and ``"S_total"``
+        (all in J/mol/K).  Values are ``None`` if they could not be extracted.
+
+    Raises
+    ------
+    ValueError
+        If the best CENSO conformer cannot be identified or extracted.
+    subprocess.CalledProcessError
+        If the CREST process exits with a non-zero return code.
+    """
     censo_dir = dir_path / "censo"
     best_censo_conformer_xyz_file = censo_dir / "censo_best.xyz"
 
@@ -120,6 +189,23 @@ def run_crest_entropy(
 def parse_crest_entropy_output(
     crest_output_file: Path,
 ) -> dict[str, float | None]:
+    """Extract conformational entropy values from a CREST entropy output file.
+
+    Scans for the ``"Sconf"``, ``"δSrrho"``, and ``"S(total)"`` markers and
+    converts the extracted values from cal/mol/K to J/mol/K.
+
+    Parameters
+    ----------
+    crest_output_file : Path
+        Path to the plain-text CREST entropy output file.
+
+    Returns
+    -------
+    dict[str, float | None]
+        Dict with keys ``"S_conf"``, ``"S_rrho"``, and ``"S_total"``
+        (all in J/mol/K).  Any value that could not be extracted is ``None``;
+        a warning is logged in that case.
+    """
     crest_output: dict[str, float | None] = dict.fromkeys(
         CREST_ENTROPY_OUTPUT_PARAMS,
         None,

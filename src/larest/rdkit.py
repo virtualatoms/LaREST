@@ -1,3 +1,10 @@
+"""RDKit conformer generation and xTB thermodynamic ranking for the first pipeline stage.
+
+Generates an MMFF conformer ensemble using RDKit, optimises and aligns the
+conformers, then re-ranks them by xTB free energy (G).  The best conformer
+(lowest G) is taken forward to the CREST stage.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -33,6 +40,32 @@ def run_rdkit(
     dir_path: Path,
     config: dict[str, Any],
 ) -> dict[str, dict[str, float | None]]:
+    """Generate MMFF conformers, rank by xTB free energy, and return the best result.
+
+    Workflow:
+
+    1. Embed ``n_conformers`` conformers using ``EmbedMultipleConfs``.
+    2. Optimise all conformers with MMFF.
+    3. Align conformers geometrically.
+    4. Write conformers to ``<dir_path>/rdkit/conformers.sdf``.
+    5. For each conformer, run xTB and parse H, S, G.
+    6. Return the thermodynamic parameters of the lowest-G conformer.
+
+    Parameters
+    ----------
+    smiles : str
+        SMILES string of the molecule to process.
+    dir_path : Path
+        Root molecule output directory (e.g. ``output/Monomer/<slug>``).
+    config : dict[str, Any]
+        Full pipeline configuration dict.
+
+    Returns
+    -------
+    dict[str, dict[str, float | None]]
+        Single-entry dict ``{"rdkit": {"H": ..., "S": ..., "G": ...}}``
+        containing the xTB thermodynamic parameters for the best conformer.
+    """
     rdkit_dir = dir_path / "rdkit"
     create_dir(rdkit_dir)
 
@@ -169,6 +202,20 @@ def run_rdkit(
 
 
 def parse_best_rdkit_conformer(xtb_rdkit_results_file: Path) -> dict[str, float | None]:
+    """Read the xTB results CSV and return the lowest-G conformer's parameters.
+
+    Parameters
+    ----------
+    xtb_rdkit_results_file : Path
+        Path to the ``results.csv`` produced by :func:`run_rdkit`, containing
+        columns ``conformer_id``, ``H``, ``S``, and ``G``.
+
+    Returns
+    -------
+    dict[str, float | None]
+        Row dict for the conformer with the smallest ``G`` value, including the
+        ``conformer_id`` column.
+    """
     xtb_results_df: pd.DataFrame = pd.read_csv(
         xtb_rdkit_results_file,
         header=0,

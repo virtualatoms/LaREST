@@ -1,3 +1,16 @@
+"""Top-level pipeline orchestration for LaREST.
+
+This module contains the three main functions that drive a full LaREST run:
+
+* :func:`run_pipeline` — executes the four stages (RDKit, CREST confgen,
+  CENSO, CREST entropy) for a single molecule and writes ``results.json``.
+* :func:`compile_results` — combines monomer, polymer, and (for ROR)
+  initiator results into per-section ``delta_H / delta_S / delta_G`` CSV
+  summaries inside ``<output>/Monomer/<slug>/summary/``.
+* :func:`main` — iterates over all configured monomers and polymer lengths,
+  calling the two functions above for each combination.
+"""
+
 from __future__ import annotations
 
 import json
@@ -26,6 +39,29 @@ def run_pipeline(
     output_dir: Path,
     config: dict[str, Any],
 ) -> MolResults:
+    """Run the full four-stage pipeline for a single molecule.
+
+    Restores any existing checkpoint results, then conditionally executes
+    each enabled stage (controlled by the ``[steps]`` config section) before
+    writing a final ``results.json`` file.
+
+    Parameters
+    ----------
+    mol : Monomer | Polymer | Initiator
+        The molecule to process.  Output is placed under
+        ``output_dir/Polymer/<slug>_<length>/`` for polymers or
+        ``output_dir/<MolType>/<slug>/`` for monomers and initiators.
+    output_dir : Path
+        Root output directory for the run.
+    config : dict[str, Any]
+        Full pipeline configuration dict loaded from ``config.toml``.
+
+    Returns
+    -------
+    MolResults
+        Dataclass containing the molecule's SMILES and a mapping of pipeline
+        section names to thermodynamic parameter dicts.
+    """
     match mol:
         case Polymer():
             dir_path = output_dir / "Polymer" / f"{slugify(mol.monomer_smiles)}_{mol.length}"
@@ -63,6 +99,40 @@ def compile_results(
     output_dir: Path,
     reaction_type: str,
 ) -> None:
+    """Compute reaction thermodynamics and write per-section CSV summaries.
+
+    For each pipeline section present in *monomer_results*, constructs a
+    DataFrame containing the raw monomer, initiator, and polymer thermodynamic
+    values at every polymer length, then appends columns for
+    ``delta_H``, ``delta_S``, and ``delta_G`` computed as::
+
+        delta_param = (polymer_param - n * monomer_param - initiator_param) / n
+
+    where *n* is the polymer length.  One CSV file per section is written to
+    ``<output_dir>/Monomer/<slug>/summary/``.
+
+    Parameters
+    ----------
+    monomer_smiles : str
+        SMILES string of the monomer (used to locate the summary directory).
+    monomer_results : MolResults
+        Pipeline results for the monomer molecule.
+    polymer_results : list[tuple[int, MolResults]]
+        Pairs of (polymer_length, MolResults) for each requested chain length.
+    initiator_results : MolResults | None
+        Pipeline results for the initiator.  Required when *reaction_type* is
+        ``"ROR"``; pass ``None`` for ``"RER"`` reactions.
+    output_dir : Path
+        Root output directory for the run.
+    reaction_type : str
+        Either ``"ROR"`` or ``"RER"``.  Determines whether initiator
+        thermodynamics are included in the delta calculation.
+
+    Raises
+    ------
+    ValueError
+        If *reaction_type* is ``"ROR"`` but *initiator_results* is ``None``.
+    """
     if reaction_type == "ROR" and initiator_results is None:
         raise ValueError(f"Initiator results are required for ROR reactions but are missing (monomer: {monomer_smiles})")
 
@@ -102,6 +172,22 @@ def compile_results(
 
 
 def main(output_dir: Path, config: dict[str, Any]) -> None:
+    """Run the complete LaREST pipeline for all configured monomers and lengths.
+
+    Iterates over every monomer SMILES in ``config["reaction"]["monomers"]``,
+    runs the pipeline for the monomer (and initiator if ROR), builds all
+    requested polymer lengths, runs the pipeline for each polymer, then calls
+    :func:`compile_results` to produce the summary CSVs.  Failures for
+    individual molecules or polymer lengths are logged and skipped so that the
+    remaining molecules can still be processed.
+
+    Parameters
+    ----------
+    output_dir : Path
+        Root output directory; sub-directories are created automatically.
+    config : dict[str, Any]
+        Full pipeline configuration dict loaded from ``config.toml``.
+    """
     reaction_type = config["reaction"]["type"]
 
     logger.info("Running pipeline for monomers")

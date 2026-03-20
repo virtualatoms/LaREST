@@ -1,3 +1,13 @@
+"""Physical constants and shared lookup tables used throughout the LaREST pipeline.
+
+Unit conversion factors convert values produced by external QM programs (xTB,
+CENSO) into SI-consistent J/mol units before they are stored or compared.
+
+SMARTS patterns in ``MONOMER_GROUPS`` and ``INITIATOR_GROUPS`` define the
+ring-opening functional groups that LaREST recognises when building polymer
+chains.
+"""
+
 HARTTREE_TO_JMOL = 2625499.63948
 KCALMOL_TO_JMOL = 4184.0
 CALMOL_TO_JMOL = 4.184

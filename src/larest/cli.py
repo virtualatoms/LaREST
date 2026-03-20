@@ -1,9 +1,17 @@
+"""Command-line interface entry point for LaREST.
+
+Parses ``-o``/``--output``, ``-c``/``--config``, and ``-v``/``--verbose``
+arguments, initialises the logger and configuration, then delegates to
+:func:`larest.main.main`.
+"""
+
 from __future__ import annotations
 
 import argparse
 import logging
 from pathlib import Path
 
+from larest import LAREST_HEADER
 from larest.main import main
 from larest.setup import get_config, get_logger
 
@@ -11,6 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 def entry_point() -> None:
+    """Parse CLI arguments and launch the LaREST pipeline.
+
+    This function is registered as the ``larest`` console script entry point
+    in ``pyproject.toml``.  It exits with code 1 if the config or logger
+    cannot be initialised.
+    """
+    print(LAREST_HEADER)
     parser = argparse.ArgumentParser(description="LaREST")
     parser.add_argument(
         "-o",

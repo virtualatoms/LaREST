@@ -1,3 +1,17 @@
+"""CENSO DFT refinement stage of the LaREST pipeline.
+
+Wraps the CENSO (Conformer Ensemble Sorting) program, which performs four
+sequential sub-stages of increasing DFT accuracy:
+
+0. ``0_PRESCREENING`` — fast pre-screening of the CREST ensemble
+1. ``1_SCREENING``    — singlepoint DFT screening
+2. ``2_OPTIMIZATION`` — DFT geometry optimisation
+3. ``3_REFINEMENT``   — high-accuracy single-point refinement
+
+Thermodynamic parameters (H, G) are extracted from the CENSO output at each
+sub-stage, and entropy is derived as S = (H - G) / T.
+"""
+
 from __future__ import annotations
 
 import json
@@ -9,9 +23,36 @@ from typing import Any
 from larest.constants import CENSO_SECTIONS, HARTTREE_TO_JMOL, THERMODYNAMIC_PARAMS
 from larest.output import create_dir
 from larest.setup import parse_command_args
-from larest.setup import create_censorc
 
 logger = logging.getLogger(__name__)
+
+
+def create_censorc(config: dict[str, Any], temp_dir: Path) -> None:
+    """Write the CENSO runtime configuration file (``.censo2rc``) to *temp_dir*.
+
+    Iterates over ``config["censo"]`` and writes each sub-section as an INI
+    block, e.g.::
+
+        [general]
+        temperature = 298.15
+        ...
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Full pipeline configuration dict.  The ``[censo]`` section is used.
+    temp_dir : Path
+        Directory in which the ``.censo2rc`` file is written.
+    """
+    censorc_file = temp_dir / ".censo2rc"
+    censo_config: dict[str, Any] = config["censo"]
+
+    with open(censorc_file, "w") as fstream:
+        for header, sub_config in censo_config.items():
+            fstream.write(f"[{header}]\n")
+            fstream.writelines(f"{key} = {value}\n" for key, value in sub_config.items())
+            fstream.write("\n")
+    logger.debug(f"Created censo config file at {censorc_file}")
 
 
 def run_censo(
@@ -19,6 +60,36 @@ def run_censo(
     output_dir: Path,
     config: dict[str, Any],
 ) -> dict[str, dict[str, float | None]]:
+    """Run CENSO on the CREST conformer ensemble and return thermodynamic results.
+
+    Creates the ``.censo2rc`` config file, invokes the ``censo`` binary with
+    the CREST conformers XYZ as input, parses the output for all four
+    sub-stages, writes ``<dir_path>/censo/results.json``, and returns the
+    parsed results.
+
+    Parameters
+    ----------
+    dir_path : Path
+        Root molecule output directory.  Must contain
+        ``crest_confgen/crest_conformers.xyz`` from a completed CREST stage.
+    output_dir : Path
+        Root run output directory; the ``.censo2rc`` file is written to
+        ``<output_dir>/temp/``.
+    config : dict[str, Any]
+        Full pipeline configuration dict.  Uses ``[censo]`` and
+        ``[censo][cli]`` sub-sections.
+
+    Returns
+    -------
+    dict[str, dict[str, float | None]]
+        Mapping of CENSO sub-stage name to thermodynamic parameter dict, e.g.
+        ``{"0_PRESCREENING": {"H": ..., "S": ..., "G": ...}, ...}``.
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        If the CENSO process exits with a non-zero return code.
+    """
     temp_dir = output_dir / "temp"
     create_censorc(config=config, temp_dir=temp_dir)
 
@@ -63,6 +134,27 @@ def parse_censo_output(
     censo_output_file: Path,
     temperature: float,
 ) -> dict[str, dict[str, float | None]]:
+    """Extract per-sub-stage thermodynamic parameters from a CENSO output file.
+
+    Scans for ``"part0"``, ``"part1"``, ``"part2"``, ``"part3"`` markers and
+    reads Boltzmann-averaged H and G values from each.  Entropy is derived as
+    ``S = (H - G) / T``.  Values are converted from Hartree to J/mol.
+
+    Parameters
+    ----------
+    censo_output_file : Path
+        Path to the plain-text CENSO output file.
+    temperature : float
+        Temperature in Kelvin used to derive entropy from H and G.
+
+    Returns
+    -------
+    dict[str, dict[str, float | None]]
+        Nested dict mapping each CENSO section (``"0_PRESCREENING"``,
+        ``"1_SCREENING"``, ``"2_OPTIMIZATION"``, ``"3_REFINEMENT"``) to a
+        thermodynamic parameter dict with keys ``"H"``, ``"S"``, ``"G"``
+        (J/mol).  A value is ``None`` if it could not be extracted.
+    """
     # WARN: cannot use fromkeys, otherwise they all point to the same mutable dict
     censo_output: dict[str, dict[str, float | None]] = {
         section: dict.fromkeys(THERMODYNAMIC_PARAMS, None) for section in CENSO_SECTIONS
@@ -105,6 +197,23 @@ def parse_censo_output(
 def parse_best_censo_conformers(
     censo_output_file: Path,
 ) -> dict[str, str]:
+    """Identify the highest-ranked conformer in each CENSO sub-stage.
+
+    Scans the CENSO output for ``"Highest ranked conformer"`` lines and
+    records the associated conformer ID (e.g. ``"CONF5"``) for each sub-stage.
+    Missing entries fall back to ``"CONF0"`` with a logged warning.
+
+    Parameters
+    ----------
+    censo_output_file : Path
+        Path to the plain-text CENSO output file.
+
+    Returns
+    -------
+    dict[str, str]
+        Mapping of CENSO section name to the ID of the top-ranked conformer
+        in that section, e.g. ``{"3_REFINEMENT": "CONF5", ...}``.
+    """
     best_censo_conformers: dict[str, str] = dict.fromkeys(CENSO_SECTIONS, "CONF0")
 
     logger.debug(f"Searching for results in file {censo_output_file}")
@@ -141,6 +250,21 @@ def extract_best_conformer_xyz(
     best_conformer_id: str,
     output_xyz_file: Path,
 ) -> None:
+    """Extract a single conformer block from a multi-conformer XYZ file.
+
+    Reads the XYZ file produced by CENSO (which may contain many conformers)
+    and writes only the block for *best_conformer_id* to *output_xyz_file*.
+
+    Parameters
+    ----------
+    censo_conformers_xyz_file : Path
+        Path to the multi-conformer XYZ file (e.g. ``3_REFINEMENT.xyz``).
+    best_conformer_id : str
+        Conformer label to search for (e.g. ``"CONF5"``).  The search looks
+        for this string in the comment line of each XYZ block.
+    output_xyz_file : Path
+        Destination path for the extracted single-conformer XYZ file.
+    """
     logger.debug(
         f"Extracting best conformer ({best_conformer_id}) .xyz from {censo_conformers_xyz_file}",
     )

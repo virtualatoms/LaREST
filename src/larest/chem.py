@@ -1,3 +1,19 @@
+"""RDKit-based chemistry utilities for polymer construction and ring analysis.
+
+This module provides functions to parse SMILES strings into RDKit molecule
+objects, identify ring-opening functional groups, and assemble polymer chains
+by iteratively zipping monomer (and optionally initiator) units using RDKit's
+``molzip`` functionality.
+
+Supported reaction types
+------------------------
+ROR (Ring-Opening polymerization Reaction)
+    An initiator alcohol caps one chain end; the other end is the growing chain.
+RER (Ring Equilibrium Reaction)
+    No initiator; the chain is terminated by an additional monomer unit on each
+    end.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -195,6 +211,37 @@ def build_polymer(
     reaction_type: Literal["ROR", "RER"],
     config: dict[str, Any],
 ) -> str:
+    """Build a polymer chain SMILES string from a monomer and reaction type.
+
+    Iteratively assembles the chain by zipping monomer units together using
+    RDKit's ``molzip``, then caps the terminal end with either an initiator
+    unit (ROR) or an additional monomer unit (RER).
+
+    Parameters
+    ----------
+    monomer_smiles : str
+        SMILES string of the lactone monomer.
+    polymer_length : int
+        Number of monomer repeat units.  Must be >= 2 for RER and >= 1 for ROR.
+    reaction_type : {"ROR", "RER"}
+        ``"ROR"`` uses the initiator SMILES from ``config["reaction"]["initiator"]``
+        to cap the chain; ``"RER"`` uses an additional monomer unit instead.
+    config : dict[str, Any]
+        Full pipeline configuration dict.  The ``config["reaction"]["initiator"]``
+        key is required when *reaction_type* is ``"ROR"``.
+
+    Returns
+    -------
+    str
+        Canonical SMILES string of the assembled polymer chain.
+
+    Raises
+    ------
+    ValueError
+        If *polymer_length* is out of range for the given *reaction_type*, or
+        if a monomer/initiator unit cannot be constructed from the provided
+        SMILES.
+    """
     if polymer_length <= 1 and reaction_type == "RER":
         raise ValueError(
             f"Please specify a polymer length > 1 for RER reaction (current length: {polymer_length})",

@@ -5,7 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "larest"
 # version = "0.0.1"
-dependencies = [] # TODO
+dependencies = [
+    "numpy",
+    "pandas",
+    "rdkit",
+    "tqdm",
+    "censo",
+]
 description = "Lactone Ring-opening Energetics Sorting Tool"
 readme = "README.md"
 keywords = ["polymerisation", "xtb", "CREST", "CENSO", "DFT", "SQM"]
