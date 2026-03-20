@@ -1,6 +1,6 @@
 """Command-line interface entry point for LaREST.
 
-Parses ``-o``/``--output``, ``-c``/``--config``, and ``-v``/``--verbose``
+Parses ``config``, ``-o``/``--output``, and ``-v``/``--verbose``
 arguments, initialises the logger and configuration, then delegates to
 :func:`larest.main.main`.
 """
@@ -28,18 +28,16 @@ def entry_point() -> None:
     print(LAREST_HEADER)
     parser = argparse.ArgumentParser(description="LaREST")
     parser.add_argument(
+        "config",
+        type=str,
+        help="Path to config.toml",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         type=str,
         default="./output",
         help="Output directory",
-    )
-    parser.add_argument(
-        "-c",
-        "--config",
-        type=str,
-        default="./config",
-        help="Config directory",
     )
     parser.add_argument(
         "-v",
@@ -49,13 +47,15 @@ def entry_point() -> None:
     )
     args = parser.parse_args()
 
-    output_dir = Path(args.output)
-    config_dir = Path(args.config)
+    output_dir = Path(args.output).resolve()
+    config_file = Path(args.config).resolve()
 
     try:
-        config = get_config(config_dir)
+        config = get_config(config_file)
     except Exception as err:
         raise SystemExit(1) from err
+
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         get_logger(output_dir=output_dir, config=config)

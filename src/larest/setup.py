@@ -75,7 +75,7 @@ def _apply_parallelisation(config: dict[str, Any], user_config: dict[str, Any]) 
     return config
 
 
-def get_config(config_dir: Path) -> dict[str, Any]:
+def get_config(config_file: Path) -> dict[str, Any]:
     """Load and merge the pipeline configuration.
 
     Deep-merges the user's ``config.toml`` on top of the built-in defaults
@@ -85,8 +85,8 @@ def get_config(config_dir: Path) -> dict[str, Any]:
 
     Parameters
     ----------
-    config_dir : Path
-        Directory containing ``config.toml``.
+    config_file : Path
+        Path to the ``config.toml`` file.
 
     Returns
     -------
@@ -101,7 +101,6 @@ def get_config(config_dir: Path) -> dict[str, Any]:
     """
     defaults = _load_defaults()
 
-    config_file = config_dir / "config.toml"
     try:
         with open(config_file, "rb") as fstream:
             user_config = tomllib.load(fstream)
@@ -137,12 +136,12 @@ def get_logger(output_dir: Path, config: dict[str, Any]) -> None:
     """
     try:
         log_config: dict[str, Any] = copy.deepcopy(config["logging"])
-        log_config["handlers"]["file"]["filename"] = (
-            output_dir / log_config["handlers"]["file"]["filename"]
-        ).resolve()
+        log_config["handlers"]["file"]["filename"] = str(
+            (output_dir / log_config["handlers"]["file"]["filename"]).resolve()
+        )
         logging.config.dictConfig(log_config)
     except Exception:
-        print(f"Failed to setup logging config from {config}")
+        print(f"Failed to setup logging config from {log_config}")
         raise
 
 

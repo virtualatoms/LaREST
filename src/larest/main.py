@@ -224,7 +224,7 @@ def main(output_dir: Path, config: dict[str, Any]) -> None:
             polymers.append(Polymer(smiles=polymer_smiles, monomer_smiles=monomer_smiles, length=length))
 
         polymer_results: list[tuple[int, MolResults]] = []
-        for polymer in tqdm(polymers, desc="Running pipeline for each polymer length"):
+        for polymer in tqdm(polymers, desc="Running pipeline for each polymer length", leave=False):
             try:
                 result = run_pipeline(polymer, output_dir, config)
                 polymer_results.append((polymer.length, result))

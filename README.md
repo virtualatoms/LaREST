@@ -41,11 +41,11 @@ This installs `xTB`, `CREST`, and `LaREST` itself (along with all Python depende
 ### Running locally
 
 ```bash
-larest -o <output_dir> -c <config_dir>
+larest <config.toml> -o <output_dir>
 ```
 
+- `config` — path to `config.toml` (required)
 - `-o` / `--output` — directory where all results are written (default: `./output`)
-- `-c` / `--config` — directory containing `config.toml` (default: `./config`)
 - `-v` / `--verbose` — increase console log verbosity
 
 ### Running on HPC (Imperial College PBS)

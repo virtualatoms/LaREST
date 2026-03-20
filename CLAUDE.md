@@ -20,13 +20,13 @@ CENSO and ORCA must be installed separately (see README). The `orcaversion` in `
 
 ```bash
 # Local run
-larest -o <output_dir> -c <config_dir>
+larest <config.toml> -o <output_dir>
 
 # HPC (Imperial College PBS)
 qsub pipeline.sh
 ```
 
-The `-c` flag points to a directory containing `config.toml`. This file must be complete — there is no defaults merging. See `config/reference.toml` for documentation of all available options.
+The `-c` flag points to a `config.toml` file. See `config/reference.toml` for documentation of all available options.
 
 ## Linting
 
