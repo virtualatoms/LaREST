@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import textwrap
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -262,3 +264,101 @@ class TestRunPipelineMocked:
             run_pipeline(mol, tmp_path, config)
 
         mock_rdkit.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Full CLI integration test
+# ---------------------------------------------------------------------------
+
+_MINIMAL_CONFIG_TOML = textwrap.dedent("""\
+    [reaction]
+    monomers = ["C1CC(=O)O1"]
+    lengths = [2]
+    type = "RER"
+
+    [steps]
+    rdkit = true
+    crest_confgen = false
+    censo = false
+    crest_entropy = false
+    xtb = true
+
+    [rdkit]
+    n_conformers = 2
+""")
+
+
+@pytest.mark.integration
+class TestCLIIntegration:
+    """End-to-end test: invokes the `larest` CLI on a minimal config."""
+
+    def test_cli_exits_zero(self, tmp_path):
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(_MINIMAL_CONFIG_TOML)
+        output_dir = tmp_path / "output"
+
+        result = subprocess.run(
+            ["larest", str(config_file), "-o", str(output_dir)],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+    def test_cli_creates_monomer_results(self, tmp_path):
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(_MINIMAL_CONFIG_TOML)
+        output_dir = tmp_path / "output"
+
+        subprocess.run(
+            ["larest", str(config_file), "-o", str(output_dir)],
+            capture_output=True,
+            check=True,
+        )
+
+        monomer_results = list((output_dir / "Monomer").glob("*/results.json"))
+        assert len(monomer_results) == 1
+
+    def test_cli_creates_polymer_results(self, tmp_path):
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(_MINIMAL_CONFIG_TOML)
+        output_dir = tmp_path / "output"
+
+        subprocess.run(
+            ["larest", str(config_file), "-o", str(output_dir)],
+            capture_output=True,
+            check=True,
+        )
+
+        polymer_results = list((output_dir / "Polymer").glob("*_2/results.json"))
+        assert len(polymer_results) == 1
+
+    def test_cli_creates_summary_csv(self, tmp_path):
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(_MINIMAL_CONFIG_TOML)
+        output_dir = tmp_path / "output"
+
+        subprocess.run(
+            ["larest", str(config_file), "-o", str(output_dir)],
+            capture_output=True,
+            check=True,
+        )
+
+        summary_csvs = list((output_dir / "Monomer").glob("*/summary/rdkit.csv"))
+        assert len(summary_csvs) == 1
+
+    def test_cli_summary_has_correct_polymer_length(self, tmp_path):
+        import pandas as pd
+
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(_MINIMAL_CONFIG_TOML)
+        output_dir = tmp_path / "output"
+
+        subprocess.run(
+            ["larest", str(config_file), "-o", str(output_dir)],
+            capture_output=True,
+            check=True,
+        )
+
+        csv_path = next((output_dir / "Monomer").glob("*/summary/rdkit.csv"))
+        df = pd.read_csv(csv_path)
+        assert set(df["polymer_length"].astype(int).tolist()) == {2}

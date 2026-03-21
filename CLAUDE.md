@@ -9,7 +9,7 @@ LaREST (Lactone Ring-opening Energetics Sorting Tool) is a computational chemist
 ## Installation
 
 ```bash
-conda env create -f environment.yaml
+conda env create -f env.yaml
 conda activate larest
 pip install .
 ```

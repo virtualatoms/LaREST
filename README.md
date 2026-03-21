@@ -25,7 +25,7 @@ where *n* is the polymer chain length.
 ```bash
 git clone https://github.com/Ryan-Reese/LaREST.git
 cd LaREST
-conda env create -f environment.yaml
+conda env create -f env.yaml
 conda activate larest
 ```
 
