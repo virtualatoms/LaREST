@@ -1,0 +1,13 @@
+ CENSO output (sample)
+
+part0 -0.12345678 -0.12345000 some other data
+  Highest ranked conformer CONF1
+
+part1 -0.23456789 -0.23456000 some other data
+  Highest ranked conformer CONF2
+
+part2 -0.34567890 -0.34567000 some other data
+  Highest ranked conformer CONF3
+
+part3 -0.45678901 -0.45678000 some other data
+  Highest ranked conformer CONF5

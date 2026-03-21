@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Testing
+
+- **Added pytest test suite** (`tests/`): 132 unit tests covering all modules except CENSO/ORCA
+  execution. Tests are split into fast unit tests (mocked subprocess, no external tools) and
+  integration tests that invoke `xtb`/`crest` directly. Run with `pytest tests/`; pass
+  `--integration` to include the integration tests.
+
+  Modules covered: `data`, `output`, `setup`, `chem`, `xtb`, `crest`, `censo` (parsing only),
+  `checkpoint`, `rdkit` (stage), `main`.
+
+  Sample fixture files added to `tests/data/`: `xtb_output.txt`, `crest_entropy_output.txt`,
+  `rdkit_results.csv`, `censo_output.txt`, `censo_conformers.xyz`.
+
+- **`pytest` configuration added to `pyproject.toml`**: `testpaths = ["tests"]` and `-v` set
+  as default options so `pytest` can be invoked without arguments from the project root.
+
 ### Bug Fixes
 
 - **`MolToXYZFile` wrote the same conformer to every `.xyz` file** (`base.py`): Missing

@@ -37,6 +37,33 @@ ruff format src/
 
 Ruff is configured in `pyproject.toml` with `select = ["ALL"]` and several categories ignored (see `[tool.ruff.lint].ignore`). Docstrings (`D`) and pathlib enforcement (`PTH`) are disabled.
 
+## Testing
+
+```bash
+# Unit tests only (no external tools required)
+pytest tests/
+
+# Include integration tests (requires xtb and crest on PATH)
+pytest tests/ --integration
+```
+
+Tests live in `tests/` and are structured as follows:
+
+- `conftest.py` — shared fixtures (minimal pipeline config, sample file paths) and the `--integration` CLI flag
+- `data/` — sample output files used as fixtures (xTB output, CREST entropy output, rdkit results CSV, CENSO output, multi-conformer XYZ)
+- `test_data.py` — dataclass unit tests
+- `test_output.py` — filesystem utility tests (`slugify`, `create_dir`, `remove_dir`)
+- `test_setup.py` — config loading, deep-merge, parallelisation propagation, `parse_command_args`
+- `test_chem.py` — SMILES parsing, ring-size detection, RER/ROR polymer construction
+- `test_xtb.py` — `parse_xtb_output`, `run_xtb` (mocked subprocess + integration)
+- `test_crest.py` — `parse_crest_entropy_output`, `run_crest_confgen/entropy` (mocked + integration)
+- `test_censo.py` — all pure-parsing functions in `censo.py` (no ORCA/CENSO binary required)
+- `test_checkpoint.py` — `PipelineStage`, `restore_results`, `apply_entropy_correction`
+- `test_rdkit_stage.py` — `parse_best_rdkit_conformer`, `run_rdkit` (mocked + integration)
+- `test_main.py` — `compile_results` delta calculations, `run_pipeline` orchestration
+
+Integration tests are marked `@pytest.mark.integration` and skipped by default. Pass `--integration` to enable them. CENSO/ORCA tests are not included as they require a full DFT installation.
+
 ## Architecture
 
 ### Pipeline stages (in order)
@@ -91,4 +118,4 @@ output/
 
 ### Tests directory
 
-`tests/` contains benchmarking and validation scripts (`ring_size/`, `tropic/`, `tu-2023/`) with their own `pipeline.sh` and plotting scripts. These are research validation datasets, not a pytest test suite.
+`tests/` contains the pytest test suite (see **Testing** above) plus sample fixture data in `tests/data/`.

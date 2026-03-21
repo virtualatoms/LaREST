@@ -1,10 +1,9 @@
 [build-system]
-requires = ["setuptools", "versioningit ~= 1.0"]
+requires = ["setuptools", "versioningit ~= 3.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "larest"
-# version = "0.0.1"
 dependencies = [
     "numpy",
     "pandas",
@@ -26,12 +25,12 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Information Technology",
     "Intended Audience :: Science/Research",
-    "Intended Audience :: System Administrators",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
-    "Topic :: Other/Nonlisted Topic",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Chemistry",
 ]
 requires-python = ">=3.11"
 
@@ -86,4 +85,8 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
 

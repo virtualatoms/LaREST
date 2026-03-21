@@ -211,6 +211,43 @@ output/
 
 The `summary/` CSVs are the primary output, containing per-polymer-length reaction thermodynamics (ΔH, ΔS, ΔG in J/mol) at each level of theory. The `censo_corrected` section combines CENSO `censo_refinement` enthalpies with the CREST conformational entropy.
 
+## Testing
+
+The test suite lives in `tests/` and uses `pytest`. Tests are split into fast unit tests (no external tools required) and integration tests that exercise the `xtb` and `crest` binaries.
+
+First install `pytest` into the environment:
+
+```bash
+pip install pytest
+```
+
+**Unit tests only** (fast, no external tools needed):
+
+```bash
+pytest tests/
+```
+
+**Including integration tests** (requires `xtb` and `crest` on `PATH`):
+
+```bash
+pytest tests/ --integration
+```
+
+Test modules and what they cover:
+
+| Module | Coverage |
+|---|---|
+| `test_data.py` | `Monomer`, `Polymer`, `Initiator`, `MolResults` dataclasses |
+| `test_output.py` | `slugify`, `create_dir`, `remove_dir` |
+| `test_setup.py` | Config loading, deep-merge, parallelisation propagation, `parse_command_args` |
+| `test_chem.py` | SMILES parsing, ring-size detection, polymer construction (RER and ROR) |
+| `test_xtb.py` | xTB output parsing and `run_xtb` (mocked + integration) |
+| `test_crest.py` | CREST entropy output parsing, `run_crest_confgen`, `run_crest_entropy` (mocked + integration) |
+| `test_censo.py` | CENSO output parsing, conformer extraction, `.censo2rc` creation (no ORCA required) |
+| `test_checkpoint.py` | `PipelineStage` ordering, `restore_results`, `apply_entropy_correction` |
+| `test_rdkit_stage.py` | `parse_best_rdkit_conformer`, `run_rdkit` (mocked + integration) |
+| `test_main.py` | `compile_results` delta calculations, `run_pipeline` orchestration |
+
 ## Tested versions
 
 Dependency | Version

@@ -1,0 +1,5 @@
+ CREST entropy mode output (sample)
+
+   Sconf                = 12.3456
+   +  δSrrho  = 5.6789
+   S(total)  (cal/mol/K) =    18.0245
