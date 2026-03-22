@@ -20,7 +20,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from larest.censo import run_censo
 from larest.checkpoint import PipelineStage, apply_entropy_correction, restore_results
@@ -32,6 +31,18 @@ from larest.output import create_dir, remove_dir, slugify
 from larest.rdkit import run_rdkit
 
 logger = logging.getLogger(__name__)
+
+_INDENT = "       "  # 7 spaces — matches LAREST_HEADER box width
+
+_SECTION_LABELS: dict[str, str] = {
+    "rdkit": "RDKit",
+    "crest": "CREST",
+    "censo_prescreening": "CENSO prescreening",
+    "censo_screening": "CENSO screening",
+    "censo_optimization": "CENSO optimization",
+    "censo_refinement": "CENSO refinement",
+    "censo_corrected": "CENSO corrected",
+}
 
 
 def run_pipeline(
@@ -96,6 +107,68 @@ def run_pipeline(
     return MolResults(smiles=mol.smiles, sections=results)
 
 
+def format_results_table(
+    monomer_smiles: str,
+    summary_dfs: dict[str, pd.DataFrame],
+) -> str:
+    """Format pipeline delta results as a human-readable table string.
+
+    Parameters
+    ----------
+    monomer_smiles : str
+        SMILES string of the monomer (shown in the header).
+    summary_dfs : dict[str, pd.DataFrame]
+        Mapping of section name to its summary DataFrame, as returned by
+        :func:`compile_results`.  Each DataFrame must contain columns
+        ``polymer_length``, ``delta_H``, ``delta_S``, and ``delta_G``.
+
+    Returns
+    -------
+    str
+        Multi-section formatted table string ready to be printed.
+    """
+    border = "=" * 59
+    lines = [
+        "",
+        f"{_INDENT}{border}",
+        f"{_INDENT}Results: {monomer_smiles}",
+        f"{_INDENT}{border}",
+    ]
+    for section, df in summary_dfs.items():
+        display = df[["polymer_length", "delta_H", "delta_S", "delta_G"]].copy()
+        if display[["delta_H", "delta_S", "delta_G"]].isna().all(axis=None):
+            continue
+
+        display["delta_H"] = display["delta_H"] / 1000
+        display["delta_G"] = display["delta_G"] / 1000
+        display["polymer_length"] = display["polymer_length"].apply(
+            lambda x: "∞" if np.isinf(x) else str(int(x)),
+        )
+        display = display.rename(
+            columns={
+                "polymer_length": "n",
+                "delta_H": "ΔH (kJ/mol)",
+                "delta_S": "ΔS (J/mol/K)",
+                "delta_G": "ΔG (kJ/mol)",
+            },
+        )
+
+        label = _SECTION_LABELS.get(section, section)
+        lines.append(f"\n{_INDENT}{label}")
+
+        table_lines = display.to_string(
+            index=False,
+            float_format="{:.4f}".format,
+        ).split("\n")
+        for i, line in enumerate(table_lines):
+            if line.lstrip().startswith("∞"):
+                table_lines.insert(i, "-" * len(table_lines[0]))
+                break
+        lines.append("\n".join(f"{_INDENT}  {line}" for line in table_lines))
+
+    return "\n".join(lines)
+
+
 def compile_results(
     monomer_smiles: str,
     monomer_results: MolResults,
@@ -103,7 +176,7 @@ def compile_results(
     initiator_results: MolResults | None,
     output_dir: Path,
     reaction_type: str,
-) -> None:
+) -> dict[str, pd.DataFrame]:
     """Compute reaction thermodynamics and write per-section CSV summaries.
 
     For each pipeline section present in *monomer_results*, constructs a
@@ -133,6 +206,13 @@ def compile_results(
         Either ``"ROR"`` or ``"RER"``.  Determines whether initiator
         thermodynamics are included in the delta calculation.
 
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        Mapping of section name to its summary DataFrame (columns:
+        ``polymer_length``, ``monomer_*``, ``initiator_*``, ``polymer_*``,
+        ``delta_H``, ``delta_S``, ``delta_G``).
+
     Raises
     ------
     ValueError
@@ -151,6 +231,8 @@ def compile_results(
         summary_headings.extend(
             [f"{mol_type}_{param}" for param in THERMODYNAMIC_PARAMS],
         )
+
+    summary_dfs: dict[str, pd.DataFrame] = {}
 
     for section in monomer_results.sections:
         summary: dict[str, list[float | None]] = {
@@ -185,7 +267,29 @@ def compile_results(
                 - summary_df[f"initiator_{param}"]
             ) / summary_df["polymer_length"]
 
+        inf_row: dict[str, float] = {"polymer_length": np.inf}
+        for mol_type in ["monomer", "initiator", "polymer"]:
+            for param in THERMODYNAMIC_PARAMS:
+                inf_row[f"{mol_type}_{param}"] = np.nan
+        for param in THERMODYNAMIC_PARAMS:
+            col = f"delta_{param}"
+            valid = summary_df[["polymer_length", col]].dropna()
+            if len(valid) >= 2:
+                coeffs = np.polyfit(1.0 / valid["polymer_length"], valid[col], 1)
+                inf_row[col] = float(coeffs[1])
+            elif len(valid) == 1:
+                inf_row[col] = float(valid[col].iloc[0])
+            else:
+                inf_row[col] = np.nan
+        summary_df = pd.concat(
+            [summary_df, pd.DataFrame([inf_row])],
+            ignore_index=True,
+        )
+
         summary_df.to_csv(summary_dir / f"{section}.csv", header=True, index=False)
+        summary_dfs[section] = summary_df
+
+    return summary_dfs
 
 
 def main(output_dir: Path, config: dict[str, Any]) -> None:
@@ -206,14 +310,25 @@ def main(output_dir: Path, config: dict[str, Any]) -> None:
         Full pipeline configuration dict loaded from ``config.toml``.
     """
     reaction_type = config["reaction"]["type"]
+    result_tables: list[str] = []
+
+    monomers = config["reaction"]["monomers"]
+    n_monomers = len(monomers)
+    lengths = config["reaction"]["lengths"]
+
+    print(f"{_INDENT}Reaction type:   {reaction_type}")  # noqa: T201
+    print(f"{_INDENT}Monomers:        {n_monomers}")  # noqa: T201
+    if reaction_type == "ROR":
+        print(f"{_INDENT}Initiator:       {config['reaction']['initiator']}")  # noqa: T201
+    print(f"{_INDENT}Polymer lengths: {lengths}")  # noqa: T201
+    print(f"{_INDENT}Output:          {output_dir}")  # noqa: T201
 
     logger.info("Running pipeline for monomers")
-    for monomer_smiles in tqdm(
-        config["reaction"]["monomers"],
-        desc="Running pipeline for monomers",
-    ):
+    for monomer_idx, monomer_smiles in enumerate(monomers, 1):
+        print(f"\n{_INDENT}Monomer [{monomer_idx}/{n_monomers}]: {monomer_smiles}")  # noqa: T201
         monomer = Monomer(smiles=monomer_smiles)
 
+        print(f"{_INDENT}  Monomer...")  # noqa: T201
         try:
             monomer_results = run_pipeline(monomer, output_dir, config)
         except Exception:
@@ -223,6 +338,7 @@ def main(output_dir: Path, config: dict[str, Any]) -> None:
         initiator_results = None
         if reaction_type == "ROR":
             initiator = Initiator(smiles=config["reaction"]["initiator"])
+            print(f"{_INDENT}  Initiator...")  # noqa: T201
             try:
                 initiator_results = run_pipeline(initiator, output_dir, config)
             except Exception:
@@ -254,11 +370,11 @@ def main(output_dir: Path, config: dict[str, Any]) -> None:
             )
 
         polymer_results: list[tuple[int, MolResults]] = []
-        for polymer in tqdm(
-            polymers,
-            desc="Running pipeline for each polymer length",
-            leave=False,
-        ):
+        n_polymers = len(polymers)
+        for polymer_idx, polymer in enumerate(polymers, 1):
+            print(  # noqa: T201
+                f"{_INDENT}  Polymer n={polymer.length} [{polymer_idx}/{n_polymers}]...",
+            )
             try:
                 result = run_pipeline(polymer, output_dir, config)
                 polymer_results.append((polymer.length, result))
@@ -268,7 +384,8 @@ def main(output_dir: Path, config: dict[str, Any]) -> None:
                 )
                 continue
 
-        compile_results(
+        print(f"{_INDENT}  Compiling results...")  # noqa: T201
+        summary_dfs = compile_results(
             monomer_smiles=monomer_smiles,
             monomer_results=monomer_results,
             polymer_results=polymer_results,
@@ -276,3 +393,8 @@ def main(output_dir: Path, config: dict[str, Any]) -> None:
             output_dir=output_dir,
             reaction_type=reaction_type,
         )
+        result_tables.append(format_results_table(monomer_smiles, summary_dfs))
+
+    print()  # noqa: T201
+    for table in result_tables:
+        print(table)  # noqa: T201

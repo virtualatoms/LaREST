@@ -6,10 +6,11 @@ import subprocess
 import textwrap
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 
 from larest.data import MolResults, Monomer, Polymer
-from larest.main import compile_results, run_pipeline
+from larest.main import compile_results, format_results_table, run_pipeline
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -45,7 +46,138 @@ def _make_mol_results(
 # ---------------------------------------------------------------------------
 
 
+class TestFormatResultsTable:
+    def _make_summary_dfs(self):
+        return {
+            "rdkit": pd.DataFrame(
+                {
+                    "polymer_length": [2.0, 3.0],
+                    "delta_H": [-5000.0, -4500.0],
+                    "delta_S": [-10.0, -9.5],
+                    "delta_G": [-2000.0, -1800.0],
+                },
+            ),
+        }
+
+    def test_contains_monomer_smiles(self):
+        smiles = "C1CC(=O)O1"
+        table = format_results_table(smiles, self._make_summary_dfs())
+        assert smiles in table
+
+    def test_contains_section_name(self):
+        table = format_results_table("C1CC(=O)O1", self._make_summary_dfs())
+        assert "RDKit" in table
+
+    def test_contains_delta_columns_with_units(self):
+        table = format_results_table("C1CC(=O)O1", self._make_summary_dfs())
+        assert "ΔH (kJ/mol)" in table
+        assert "ΔS (J/mol/K)" in table
+        assert "ΔG (kJ/mol)" in table
+
+    def test_contains_polymer_lengths(self):
+        table = format_results_table("C1CC(=O)O1", self._make_summary_dfs())
+        assert "2" in table
+        assert "3" in table
+
+    def test_contains_delta_values(self):
+        table = format_results_table("C1CC(=O)O1", self._make_summary_dfs())
+        assert "-5.0000" in table
+        assert "-4.5000" in table
+
+    def test_multiple_sections(self):
+        dfs = {
+            "rdkit": pd.DataFrame(
+                {
+                    "polymer_length": [2.0],
+                    "delta_H": [1.0],
+                    "delta_S": [2.0],
+                    "delta_G": [3.0],
+                },
+            ),
+            "crest": pd.DataFrame(
+                {
+                    "polymer_length": [2.0],
+                    "delta_H": [4.0],
+                    "delta_S": [5.0],
+                    "delta_G": [6.0],
+                },
+            ),
+        }
+        table = format_results_table("C1CC(=O)O1", dfs)
+        assert "RDKit" in table
+        assert "CREST" in table
+
+    def test_returns_string(self):
+        table = format_results_table("C1CC(=O)O1", self._make_summary_dfs())
+        assert isinstance(table, str)
+
+    def test_displays_inf_row_as_unicode(self):
+        import numpy as np
+
+        dfs = {
+            "rdkit": pd.DataFrame(
+                {
+                    "polymer_length": [2.0, np.inf],
+                    "delta_H": [-5000.0, -4000.0],
+                    "delta_S": [-10.0, -8.0],
+                    "delta_G": [-2000.0, -1600.0],
+                },
+            ),
+        }
+        table = format_results_table("C1CC(=O)O1", dfs)
+        assert "∞" in table
+
+    def test_skips_all_nan_sections(self):
+        dfs = {
+            "rdkit": pd.DataFrame(
+                {
+                    "polymer_length": [2.0],
+                    "delta_H": [1.0],
+                    "delta_S": [2.0],
+                    "delta_G": [3.0],
+                },
+            ),
+            "crest": pd.DataFrame(
+                {
+                    "polymer_length": [2.0],
+                    "delta_H": [float("nan")],
+                    "delta_S": [float("nan")],
+                    "delta_G": [float("nan")],
+                },
+            ),
+        }
+        table = format_results_table("C1CC(=O)O1", dfs)
+        assert "RDKit" in table
+        assert "CREST" not in table
+
+
 class TestCompileResults:
+    def test_returns_dict_of_dataframes(self, tmp_path):
+        monomer_results = _make_mol_results(_MONOMER_SMILES)
+        polymer_results = [
+            (2, _make_mol_results("P", h=-210000.0, s=-105.0, g=-241500.0)),
+        ]
+
+        result = compile_results(
+            monomer_smiles=_MONOMER_SMILES,
+            monomer_results=monomer_results,
+            polymer_results=polymer_results,
+            initiator_results=None,
+            output_dir=tmp_path,
+            reaction_type="RER",
+        )
+
+        import numpy as np
+
+        assert isinstance(result, dict)
+        assert set(result.keys()) == set(_SECTIONS)
+        for df in result.values():
+            assert isinstance(df, pd.DataFrame)
+            assert "delta_H" in df.columns
+            assert "delta_S" in df.columns
+            assert "delta_G" in df.columns
+            assert np.isinf(df["polymer_length"]).any()
+
     def test_creates_summary_directory(self, tmp_path):
         monomer_results = _make_mol_results(_MONOMER_SMILES)
         polymer_results = [
@@ -188,6 +320,41 @@ class TestCompileResults:
         expected_delta_h = (-160000.0 - n * -100000.0 - -50000.0) / n
         assert row["delta_H"] == pytest.approx(expected_delta_h, rel=1e-6)
 
+    def test_inf_row_extrapolated_value(self, tmp_path):
+        """Intercept of ΔH vs 1/n regression is written as the inf row."""
+        import numpy as np
+
+        # delta_H(n=2) = (-210000 - 2*-100000) / 2 = -5000
+        # delta_H(n=4) = (-418000 - 4*-100000) / 4 = -4500
+        # polyfit(1/n=[0.5, 0.25], y=[-5000, -4500], 1) → intercept = -4000
+        compile_results(
+            monomer_smiles=_MONOMER_SMILES,
+            monomer_results=_make_mol_results(
+                _MONOMER_SMILES,
+                h=-100000.0,
+                s=-50.0,
+                g=-115000.0,
+            ),
+            polymer_results=[
+                (2, _make_mol_results("P2", h=-210000.0, s=-105.0, g=-241500.0)),
+                (4, _make_mol_results("P4", h=-418000.0, s=-209.0, g=-480200.0)),
+            ],
+            initiator_results=None,
+            output_dir=tmp_path,
+            reaction_type="RER",
+        )
+
+        from larest.output import slugify
+
+        summary_dir = tmp_path / "Monomer" / slugify(_MONOMER_SMILES) / "summary"
+        df = pd.read_csv(summary_dir / "rdkit.csv")
+        inf_row = df[np.isinf(df["polymer_length"])].iloc[0]
+
+        # delta_H(n=2) = (-210000 - 2*-100000) / 2 = -5000
+        # delta_H(n=4) = (-418000 - 4*-100000) / 4 = -4500
+        # polyfit(1/n=[0.5,0.25], y=[-5000,-4500], 1) → intercept = -4000
+        assert inf_row["delta_H"] == pytest.approx(-4000.0, rel=1e-6)
+
     def test_multiple_polymer_lengths(self, tmp_path):
         monomer_results = _make_mol_results(_MONOMER_SMILES)
         polymer_results = [
@@ -205,14 +372,16 @@ class TestCompileResults:
             reaction_type="RER",
         )
 
-        import pandas as pd
+        import numpy as np
 
         from larest.output import slugify
 
         summary_dir = tmp_path / "Monomer" / slugify(_MONOMER_SMILES) / "summary"
         df = pd.read_csv(summary_dir / "rdkit.csv")
-        assert len(df) == 3
-        assert set(df["polymer_length"].astype(int).tolist()) == {2, 3, 4}
+        assert len(df) == 4  # 3 finite lengths + 1 inf row
+        finite = df[np.isfinite(df["polymer_length"])]
+        assert set(finite["polymer_length"].astype(int).tolist()) == {2, 3, 4}
+        assert df["polymer_length"].apply(np.isinf).any()
 
 
 # ---------------------------------------------------------------------------
@@ -422,6 +591,9 @@ class TestCLIIntegration:
             check=True,
         )
 
+        import numpy as np
+
         csv_path = next((output_dir / "Monomer").glob("*/summary/rdkit.csv"))
         df = pd.read_csv(csv_path)
-        assert set(df["polymer_length"].astype(int).tolist()) == {2}
+        finite = df[np.isfinite(df["polymer_length"])]
+        assert set(finite["polymer_length"].astype(int).tolist()) == {2}
