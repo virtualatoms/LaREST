@@ -32,12 +32,3 @@ This installs ruff, ty, pre-commit, and pytest. The hooks run ruff (lint + forma
 ```bash
 pre-commit run --all-files
 ```
-
-## Tested versions
-
-| Dependency | Version |
-|---|---|
-| xTB | 6.7.1 |
-| CREST | 3.0.2 |
-| CENSO | 2.1.4 |
-| ORCA | 6.1.0 |

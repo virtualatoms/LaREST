@@ -237,15 +237,6 @@ pytest tests/
 pytest tests/ --integration
 ```
 
-## Tested versions
-
-Dependency | Version
---- | ---
-`xTB` | 6.7.1
-`CREST` | 3.0.2
-`CENSO` | 2.1.4
-`ORCA` | 6.1.0
-
 ## Citations
 
 For `xTB`:
