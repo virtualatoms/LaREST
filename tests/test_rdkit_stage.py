@@ -76,7 +76,7 @@ class TestRunRdkitMocked:
     def test_run_rdkit_invalid_smiles_raises(self, tmp_path, minimal_config):
         with pytest.raises(
             ValueError,
-            match="Failed to create RDKit Mol object from SMILES",
+            match="SMILES Parse Error",
         ):
             run_rdkit("not_a_smiles!!!", tmp_path, minimal_config)
 
