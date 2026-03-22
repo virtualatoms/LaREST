@@ -11,7 +11,7 @@ N_CORES=128
 # ---------
 
 OUTPUT_DIR="output"
-CONFIG_DIR="config"
+CONFIG_FILE="config/config.toml"
 
 # xtb-required options
 ulimit -s unlimited
@@ -33,4 +33,4 @@ conda activate ${CONDA_ENV}
 mkdir -p "${PBS_O_WORKDIR}/${OUTPUT_DIR}"
 
 # run LaREST
-larest -o "${PBS_O_WORKDIR}/${OUTPUT_DIR}" -c "${PBS_O_WORKDIR}/${CONFIG_DIR}"
+larest "${PBS_O_WORKDIR}/${CONFIG_FILE}" -o "${PBS_O_WORKDIR}/${OUTPUT_DIR}"
