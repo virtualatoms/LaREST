@@ -44,7 +44,9 @@ class TestMolResults:
         assert r.sections == {}
 
     def test_creation_with_sections(self):
-        sections = {"rdkit": {"H": 1.0, "S": 2.0, "G": 3.0}}
+        sections: dict[str, dict[str, float | None]] = {
+            "rdkit": {"H": 1.0, "S": 2.0, "G": 3.0},
+        }
         r = MolResults(smiles="C1CC(=O)O1", sections=sections)
         assert r.sections["rdkit"]["H"] == 1.0
 

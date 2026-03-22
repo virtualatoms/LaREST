@@ -17,6 +17,21 @@ conda activate larest
 
 This installs xTB, CREST, and the `larest` Python package (plus all Python dependencies) into the `larest` conda environment.
 
+## Development setup
+
+To contribute to LaREST, install the dev dependencies and register the pre-commit hooks:
+
+```bash
+pip install -e ".[dev]"
+pre-commit install
+```
+
+This installs ruff, ty, pre-commit, and pytest. The hooks run ruff (lint + format) and ty (type checking) automatically before each commit. To run them manually against all files:
+
+```bash
+pre-commit run --all-files
+```
+
 ## Post-installation
 
 After installing ORCA, update the `orcaversion` field in your config file to match your installed version:

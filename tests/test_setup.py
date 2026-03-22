@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from larest.setup import _apply_parallelisation, _deep_merge, get_config, parse_command_args
+from larest.setup import (
+    _apply_parallelisation,
+    _deep_merge,
+    get_config,
+    parse_command_args,
+)
 
 
 class TestDeepMerge:
@@ -116,7 +121,7 @@ class TestGetConfig:
         config_file = tmp_path / "config.toml"
         config_file.write_text(
             '[reaction]\nmonomers = ["C1CC(=O)O1"]\nlengths = [2]\n'
-            '[censo.paths]\norcaversion = "6.0.0"\n'
+            '[censo.paths]\norcaversion = "6.0.0"\n',
         )
         config = get_config(config_file)
         assert config["reaction"]["monomers"] == ["C1CC(=O)O1"]
@@ -133,5 +138,5 @@ class TestGetConfig:
         assert config["rdkit"]["random_seed"] == 42
 
     def test_missing_file_raises(self, tmp_path):
-        with pytest.raises(Exception):
+        with pytest.raises(FileNotFoundError):
             get_config(tmp_path / "nonexistent.toml")

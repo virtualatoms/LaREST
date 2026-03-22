@@ -25,7 +25,7 @@ def entry_point() -> None:
     in ``pyproject.toml``.  It exits with code 1 if the config or logger
     cannot be initialised.
     """
-    print(LAREST_HEADER)
+    print(LAREST_HEADER)  # noqa: T201
     parser = argparse.ArgumentParser(description="LaREST")
     parser.add_argument(
         "config",

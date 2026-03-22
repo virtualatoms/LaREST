@@ -28,11 +28,29 @@ qsub pipeline.sh
 
 The `-c` flag points to a `config.toml` file. See `config/reference.toml` for documentation of all available options.
 
+## Development setup
+
+Install the dev dependencies and set up pre-commit hooks:
+
+```bash
+pip install -e ".[dev]"
+pre-commit install
+```
+
 ## Linting
+
+Pre-commit runs ruff and ty automatically on each commit. To run manually:
+
+```bash
+pre-commit run --all-files
+```
+
+Or run tools directly:
 
 ```bash
 ruff check src/
 ruff format src/
+ty check src/
 ```
 
 Ruff is configured in `pyproject.toml` with `select = ["ALL"]` and several categories ignored (see `[tool.ruff.lint].ignore`). Docstrings (`D`) and pathlib enforcement (`PTH`) are disabled.

@@ -12,7 +12,6 @@ from larest.censo import (
 )
 from larest.constants import CENSO_SECTIONS, HARTTREE_TO_JMOL
 
-
 TEMPERATURE = 298.15
 
 # Expected values from tests/data/censo_output.txt
@@ -31,17 +30,27 @@ class TestParseCensoOutput:
 
     def test_parses_enthalpy(self, censo_output_file):
         result = parse_censo_output(censo_output_file, TEMPERATURE)
-        for section, (h_ha, _) in zip(CENSO_SECTIONS, _SECTION_HARTREES):
-            assert result[section]["H"] == pytest.approx(h_ha * HARTTREE_TO_JMOL, rel=1e-6)
+        for section, (h_ha, _) in zip(CENSO_SECTIONS, _SECTION_HARTREES, strict=False):
+            assert result[section]["H"] == pytest.approx(
+                h_ha * HARTTREE_TO_JMOL,
+                rel=1e-6,
+            )
 
     def test_parses_free_energy(self, censo_output_file):
         result = parse_censo_output(censo_output_file, TEMPERATURE)
-        for section, (_, g_ha) in zip(CENSO_SECTIONS, _SECTION_HARTREES):
-            assert result[section]["G"] == pytest.approx(g_ha * HARTTREE_TO_JMOL, rel=1e-6)
+        for section, (_, g_ha) in zip(CENSO_SECTIONS, _SECTION_HARTREES, strict=False):
+            assert result[section]["G"] == pytest.approx(
+                g_ha * HARTTREE_TO_JMOL,
+                rel=1e-6,
+            )
 
     def test_computes_entropy(self, censo_output_file):
         result = parse_censo_output(censo_output_file, TEMPERATURE)
-        for section, (h_ha, g_ha) in zip(CENSO_SECTIONS, _SECTION_HARTREES):
+        for section, (h_ha, g_ha) in zip(
+            CENSO_SECTIONS,
+            _SECTION_HARTREES,
+            strict=False,
+        ):
             expected_s = (h_ha - g_ha) * HARTTREE_TO_JMOL / TEMPERATURE
             assert result[section]["S"] == pytest.approx(expected_s, rel=1e-5)
 
@@ -83,7 +92,11 @@ class TestExtractBestConformerXyz:
         assert "CONF5" in content
         assert "CONF1" not in content
 
-    def test_extracted_xyz_has_correct_atom_count(self, censo_conformers_xyz_file, tmp_path):
+    def test_extracted_xyz_has_correct_atom_count(
+        self,
+        censo_conformers_xyz_file,
+        tmp_path,
+    ):
         out = tmp_path / "best.xyz"
         extract_best_conformer_xyz(censo_conformers_xyz_file, "CONF1", out)
         lines = out.read_text().splitlines()

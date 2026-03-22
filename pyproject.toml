@@ -43,6 +43,11 @@ docs = [
 tests = [
     "pytest",
 ]
+dev = [
+    "larest[tests]",
+    "pre-commit",
+    "ty",
+]
 
 [project.scripts]
 larest = "larest.cli:entry_point"
@@ -58,6 +63,7 @@ larest = ["defaults.toml"]
 line-length = 88
 indent-width = 4
 target-version = "py311"
+exclude = ["results/"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -74,6 +80,10 @@ ignore = [
     "PLR", # disable refactor warnings
     "PTH", # switch all paths to Pathlib objects
     "COM819", # trailing commas
+    "TC003",  # pathlib.Path is used at runtime, not only in annotations
+    "S603",   # subprocess calls are intentional (scientific CLI tools)
+    "S607",   # partial executable paths are intentional
+    "C901",   # complex functions are acceptable in this codebase
 ]
 pydocstyle.convention = "numpy"
 isort.known-first-party = ["larest"]
@@ -85,7 +95,7 @@ max-line-length = 110
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"**/tests/*" = ["ANN", "ARG001", "D", "INP001", "S101"]
+"**/tests/*" = ["ANN", "ARG001", "D", "INP001", "S101", "PD901", "B017"]
 "docs/*" = ["INP001"]
 
 [tool.ruff.format]
@@ -97,4 +107,3 @@ line-ending = "auto"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
-

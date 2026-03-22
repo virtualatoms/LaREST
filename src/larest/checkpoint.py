@@ -181,10 +181,12 @@ def apply_entropy_correction(
         If either ``refinement_results["S"]`` or
         ``crest_entropy_results["S_total"]`` is ``None``.
     """
-    if refinement_results["S"] is None or crest_entropy_results["S_total"] is None:
+    s = refinement_results["S"]
+    s_total = crest_entropy_results["S_total"]
+    if s is None or s_total is None:
         raise ValueError("Failed to apply CREST entropy correction to CENSO results")
     corrected = refinement_results.copy()
-    corrected["S"] += crest_entropy_results["S_total"]
+    corrected["S"] = s + s_total
     return {"censo_corrected": corrected}
 
 
@@ -200,4 +202,6 @@ def _parse_crest_entropy(results: dict, path: Path) -> None:
         Path to the CREST entropy ``results.json`` file.
     """
     crest_entropy_results: dict[str, float | None] = json.loads(path.read_text())
-    results.update(apply_entropy_correction(results["censo_refinement"], crest_entropy_results))
+    results.update(
+        apply_entropy_correction(results["censo_refinement"], crest_entropy_results),
+    )

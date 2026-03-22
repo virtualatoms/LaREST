@@ -11,7 +11,6 @@ import pytest
 from larest.constants import HARTTREE_TO_JMOL
 from larest.xtb import parse_xtb_output, run_xtb
 
-
 TEMPERATURE = 298.15
 
 # Expected parsed values from tests/data/xtb_output.txt
@@ -57,11 +56,16 @@ class TestParseXtbOutput:
 class TestRunXtbMocked:
     """Tests for run_xtb with subprocess mocked out."""
 
-    def _make_xtb_output(self, tmp_path: Path, h_hartree: float, g_hartree: float) -> Path:
+    def _make_xtb_output(
+        self,
+        tmp_path: Path,
+        h_hartree: float,
+        g_hartree: float,
+    ) -> Path:
         output_file = tmp_path / "xtb.txt"
         output_file.write_text(
             f"         :: TOTAL ENTHALPY        {h_hartree} Eh           ::\n"
-            f"         :: TOTAL FREE ENERGY     {g_hartree} Eh           ::\n"
+            f"         :: TOTAL FREE ENERGY     {g_hartree} Eh           ::\n",
         )
         return output_file
 

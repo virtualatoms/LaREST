@@ -334,7 +334,8 @@ def build_polymer(
                 polymer = molzip(polymer, terminal_unit, mol_zip_params)
     except Exception:
         logger.exception(
-            f"Failed to zip polymer and terminal unit together: {MolToSmiles(polymer)} {MolToSmiles(terminal_unit)}",
+            "Failed to zip polymer and terminal unit together: "
+            f"{MolToSmiles(polymer)} {MolToSmiles(terminal_unit)}",
         )
         raise
 

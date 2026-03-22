@@ -6,7 +6,6 @@ import pytest
 
 from larest.chem import build_polymer, get_mol, get_polymer_unit, get_ring_size
 
-
 # ---------------------------------------------------------------------------
 # get_mol
 # ---------------------------------------------------------------------------
@@ -37,10 +36,10 @@ class TestGetRingSize:
     @pytest.mark.parametrize(
         ("smiles", "expected"),
         [
-            ("C1CC(=O)O1", 4),        # beta-propiolactone (4-membered)
-            ("C1CCC(=O)O1", 5),       # gamma-butyrolactone (5-membered)
-            ("C1CCCC(=O)O1", 6),      # delta-valerolactone (6-membered)
-            ("C1CCCCC(=O)O1", 7),     # epsilon-caprolactone (7-membered)
+            ("C1CC(=O)O1", 4),  # beta-propiolactone (4-membered)
+            ("C1CCC(=O)O1", 5),  # gamma-butyrolactone (5-membered)
+            ("C1CCCC(=O)O1", 6),  # delta-valerolactone (6-membered)
+            ("C1CCCCC(=O)O1", 7),  # epsilon-caprolactone (7-membered)
         ],
     )
     def test_ring_size(self, smiles, expected):
@@ -51,7 +50,10 @@ class TestGetRingSize:
         assert get_ring_size("CC(=O)OCC") is None
 
     def test_invalid_smiles_raises(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match="Failed to create RDKit Mol object from SMILES",
+        ):
             get_ring_size("not_valid!!!")
 
 
@@ -74,7 +76,7 @@ class TestGetPolymerUnit:
         assert isinstance(unit, Mol)
 
     def test_invalid_monomer_raises(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="No functional group atom ids found"):
             get_polymer_unit("CCC", "monomer", "Xe", "Y")  # no lactone group
 
 
@@ -83,9 +85,9 @@ class TestGetPolymerUnit:
 # ---------------------------------------------------------------------------
 
 # Simple lactone monomers for polymer building
-_BETA_PL = "C1CC(=O)O1"       # beta-propiolactone
-_GAMMA_BL = "C1CCC(=O)O1"     # gamma-butyrolactone
-_INITIATOR = "CCO"             # ethanol
+_BETA_PL = "C1CC(=O)O1"  # beta-propiolactone
+_GAMMA_BL = "C1CCC(=O)O1"  # gamma-butyrolactone
+_INITIATOR = "CCO"  # ethanol
 
 
 class TestBuildPolymerRER:
@@ -107,7 +109,7 @@ class TestBuildPolymerRER:
 
     def test_rer_length_0_raises(self):
         config = {"reaction": {"type": "RER", "initiator": ""}}
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="polymer length > 1"):
             build_polymer(_BETA_PL, 0, "RER", config)
 
 

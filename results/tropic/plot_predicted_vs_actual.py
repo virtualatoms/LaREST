@@ -2,8 +2,6 @@ from argparse import Namespace
 from pathlib import Path
 from typing import Any
 
-import matplotlib as mpl
-import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -11,7 +9,7 @@ import seaborn as sns
 from cycler import cycler
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
-from tropic.core.validate import MONOMER_GROUPS, get_func_group, get_ring_size
+from tropic.core.validate import get_func_group
 
 from larest.parsers import LarestArgumentParser
 from larest.setup import get_config

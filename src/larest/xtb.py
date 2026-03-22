@@ -20,7 +20,11 @@ from larest.setup import parse_command_args
 logger = logging.getLogger(__name__)
 
 
-def run_xtb(xtb_input_file: Path, xtb_dir: Path, config: dict[str, Any]) -> dict[str, float | None]:
+def run_xtb(
+    xtb_input_file: Path,
+    xtb_dir: Path,
+    config: dict[str, Any],
+) -> dict[str, float | None]:
     """Run xTB on a single geometry file and return thermodynamic parameters.
 
     Constructs the xTB command from *config*, executes it via
@@ -54,7 +58,8 @@ def run_xtb(xtb_input_file: Path, xtb_dir: Path, config: dict[str, Any]) -> dict
         str(xtb_input_file.absolute()),
         "--namespace",
         xtb_input_file.name.split(".")[0],
-    ] + parse_command_args(sub_config=["xtb"], config=config)
+        *parse_command_args(sub_config=["xtb"], config=config),
+    ]
 
     xtb_output_file = xtb_dir / "xtb.txt"
     with open(xtb_output_file, "w") as fstream:

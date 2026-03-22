@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 project = "LaREST"
 author = "Ryan Reese, Alex Ganose, Charles Romain"
-copyright = "2025, Ryan Reese, Alex Ganose, Charles Romain"
+copyright = "2025, Ryan Reese, Alex Ganose, Charles Romain"  # noqa: A001
 release = "1.0"
 
 extensions = [

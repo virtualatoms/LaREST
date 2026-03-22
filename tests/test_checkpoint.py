@@ -10,7 +10,6 @@ import pytest
 from larest.checkpoint import PipelineStage, apply_entropy_correction, restore_results
 from larest.constants import PIPELINE_SECTIONS, THERMODYNAMIC_PARAMS
 
-
 # ---------------------------------------------------------------------------
 # PipelineStage
 # ---------------------------------------------------------------------------
@@ -35,39 +34,93 @@ class TestPipelineStage:
 
 class TestApplyEntropyCorrection:
     def test_corrects_entropy(self):
-        refinement = {"H": -100000.0, "S": -50.0, "G": -115000.0}
-        entropy = {"S_conf": 10.0, "S_rrho": 5.0, "S_total": 15.0}
+        refinement: dict[str, float | None] = {
+            "H": -100000.0,
+            "S": -50.0,
+            "G": -115000.0,
+        }
+        entropy: dict[str, float | None] = {
+            "S_conf": 10.0,
+            "S_rrho": 5.0,
+            "S_total": 15.0,
+        }
         result = apply_entropy_correction(refinement, entropy)
         assert result["censo_corrected"]["S"] == pytest.approx(-50.0 + 15.0)
 
     def test_preserves_h_and_g(self):
-        refinement = {"H": -100000.0, "S": -50.0, "G": -115000.0}
-        entropy = {"S_conf": 10.0, "S_rrho": 5.0, "S_total": 15.0}
+        refinement: dict[str, float | None] = {
+            "H": -100000.0,
+            "S": -50.0,
+            "G": -115000.0,
+        }
+        entropy: dict[str, float | None] = {
+            "S_conf": 10.0,
+            "S_rrho": 5.0,
+            "S_total": 15.0,
+        }
         result = apply_entropy_correction(refinement, entropy)
         assert result["censo_corrected"]["H"] == pytest.approx(-100000.0)
         assert result["censo_corrected"]["G"] == pytest.approx(-115000.0)
 
     def test_does_not_mutate_input(self):
-        refinement = {"H": -100000.0, "S": -50.0, "G": -115000.0}
-        entropy = {"S_conf": 10.0, "S_rrho": 5.0, "S_total": 15.0}
+        refinement: dict[str, float | None] = {
+            "H": -100000.0,
+            "S": -50.0,
+            "G": -115000.0,
+        }
+        entropy: dict[str, float | None] = {
+            "S_conf": 10.0,
+            "S_rrho": 5.0,
+            "S_total": 15.0,
+        }
         apply_entropy_correction(refinement, entropy)
         assert refinement["S"] == pytest.approx(-50.0)
 
     def test_raises_when_s_none(self):
-        refinement = {"H": -100000.0, "S": None, "G": -115000.0}
-        entropy = {"S_conf": 10.0, "S_rrho": 5.0, "S_total": 15.0}
-        with pytest.raises(ValueError, match="Failed to apply CREST entropy correction"):
+        refinement: dict[str, float | None] = {
+            "H": -100000.0,
+            "S": None,
+            "G": -115000.0,
+        }
+        entropy: dict[str, float | None] = {
+            "S_conf": 10.0,
+            "S_rrho": 5.0,
+            "S_total": 15.0,
+        }
+        with pytest.raises(
+            ValueError,
+            match="Failed to apply CREST entropy correction",
+        ):
             apply_entropy_correction(refinement, entropy)
 
     def test_raises_when_s_total_none(self):
-        refinement = {"H": -100000.0, "S": -50.0, "G": -115000.0}
-        entropy = {"S_conf": 10.0, "S_rrho": 5.0, "S_total": None}
-        with pytest.raises(ValueError, match="Failed to apply CREST entropy correction"):
+        refinement: dict[str, float | None] = {
+            "H": -100000.0,
+            "S": -50.0,
+            "G": -115000.0,
+        }
+        entropy: dict[str, float | None] = {
+            "S_conf": 10.0,
+            "S_rrho": 5.0,
+            "S_total": None,
+        }
+        with pytest.raises(
+            ValueError,
+            match="Failed to apply CREST entropy correction",
+        ):
             apply_entropy_correction(refinement, entropy)
 
     def test_returns_censo_corrected_key(self):
-        refinement = {"H": -100000.0, "S": -50.0, "G": -115000.0}
-        entropy = {"S_conf": 10.0, "S_rrho": 5.0, "S_total": 15.0}
+        refinement: dict[str, float | None] = {
+            "H": -100000.0,
+            "S": -50.0,
+            "G": -115000.0,
+        }
+        entropy: dict[str, float | None] = {
+            "S_conf": 10.0,
+            "S_rrho": 5.0,
+            "S_total": 15.0,
+        }
         result = apply_entropy_correction(refinement, entropy)
         assert "censo_corrected" in result
 
@@ -82,7 +135,7 @@ def _make_rdkit_checkpoint(dir_path: Path) -> None:
     xtb_dir = dir_path / "xtb" / "rdkit"
     xtb_dir.mkdir(parents=True)
     (xtb_dir / "results.csv").write_text(
-        "conformer_id,H,S,G\n0,-324567.89,-85.12,-350000.00\n"
+        "conformer_id,H,S,G\n0,-324567.89,-85.12,-350000.00\n",
     )
 
 
@@ -90,7 +143,7 @@ def _make_crest_checkpoint(dir_path: Path) -> None:
     crest_dir = dir_path / "xtb" / "crest"
     crest_dir.mkdir(parents=True)
     (crest_dir / "results.json").write_text(
-        json.dumps({"H": -324567.0, "S": -85.0, "G": -350000.0})
+        json.dumps({"H": -324567.0, "S": -85.0, "G": -350000.0}),
     )
 
 
@@ -113,7 +166,7 @@ def _make_crest_entropy_checkpoint(dir_path: Path) -> None:
     entropy_dir = dir_path / "crest_entropy"
     entropy_dir.mkdir(parents=True)
     (entropy_dir / "results.json").write_text(
-        json.dumps({"S_conf": 10.0, "S_rrho": 5.0, "S_total": 15.0})
+        json.dumps({"S_conf": 10.0, "S_rrho": 5.0, "S_total": 15.0}),
     )
 
 

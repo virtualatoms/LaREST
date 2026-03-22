@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import pandas as pd
 from rdkit.Chem.MolStandardize.rdMolStandardize import StandardizeSmiles
 

@@ -64,7 +64,9 @@ def run_pipeline(
     """
     match mol:
         case Polymer():
-            dir_path = output_dir / "Polymer" / f"{slugify(mol.monomer_smiles)}_{mol.length}"
+            dir_path = (
+                output_dir / "Polymer" / f"{slugify(mol.monomer_smiles)}_{mol.length}"
+            )
         case _:
             dir_path = output_dir / type(mol).__name__ / slugify(mol.smiles)
 
@@ -80,7 +82,10 @@ def run_pipeline(
     if config["steps"]["crest_entropy"] and stage <= PipelineStage.CREST_ENTROPY:
         crest_entropy_results = run_crest_entropy(dir_path, config)
         if config["steps"]["censo"]:
-            results |= apply_entropy_correction(results["censo_refinement"], crest_entropy_results)
+            results |= apply_entropy_correction(
+                results["censo_refinement"],
+                crest_entropy_results,
+            )
 
     results_file = dir_path / "results.json"
     logger.debug(f"Writing final results to {results_file}")
@@ -134,25 +139,37 @@ def compile_results(
         If *reaction_type* is ``"ROR"`` but *initiator_results* is ``None``.
     """
     if reaction_type == "ROR" and initiator_results is None:
-        raise ValueError(f"Initiator results are required for ROR reactions but are missing (monomer: {monomer_smiles})")
+        raise ValueError(
+            f"Initiator results are required for ROR reactions but are missing (monomer: {monomer_smiles})",
+        )
 
     summary_dir = output_dir / "Monomer" / slugify(monomer_smiles) / "summary"
     create_dir(summary_dir)
 
     summary_headings: list[str] = ["polymer_length"]
     for mol_type in ["monomer", "initiator", "polymer"]:
-        summary_headings.extend([f"{mol_type}_{param}" for param in THERMODYNAMIC_PARAMS])
+        summary_headings.extend(
+            [f"{mol_type}_{param}" for param in THERMODYNAMIC_PARAMS],
+        )
 
     for section in monomer_results.sections:
-        summary: dict[str, list[float | None]] = {heading: [] for heading in summary_headings}
+        summary: dict[str, list[float | None]] = {
+            heading: [] for heading in summary_headings
+        }
 
         for length, poly_results in polymer_results:
             summary["polymer_length"].append(length)
             for param in THERMODYNAMIC_PARAMS:
-                summary[f"polymer_{param}"].append(poly_results.sections[section][param])
-                summary[f"monomer_{param}"].append(monomer_results.sections[section][param])
+                summary[f"polymer_{param}"].append(
+                    poly_results.sections[section][param],
+                )
+                summary[f"monomer_{param}"].append(
+                    monomer_results.sections[section][param],
+                )
                 summary[f"initiator_{param}"].append(
-                    initiator_results.sections[section][param] if reaction_type == "ROR" else 0,
+                    initiator_results.sections[section][param]  # type: ignore[union-attr]
+                    if reaction_type == "ROR"
+                    else 0,
                 )
 
         summary_df = pd.DataFrame(
@@ -191,7 +208,10 @@ def main(output_dir: Path, config: dict[str, Any]) -> None:
     reaction_type = config["reaction"]["type"]
 
     logger.info("Running pipeline for monomers")
-    for monomer_smiles in tqdm(config["reaction"]["monomers"], desc="Running pipeline for monomers"):
+    for monomer_smiles in tqdm(
+        config["reaction"]["monomers"],
+        desc="Running pipeline for monomers",
+    ):
         monomer = Monomer(smiles=monomer_smiles)
 
         try:
@@ -206,7 +226,9 @@ def main(output_dir: Path, config: dict[str, Any]) -> None:
             try:
                 initiator_results = run_pipeline(initiator, output_dir, config)
             except Exception:
-                logger.exception(f"Failed to run pipeline for initiator {config['reaction']['initiator']}")
+                logger.exception(
+                    f"Failed to run pipeline for initiator {config['reaction']['initiator']}",
+                )
                 continue
 
         polymers = []
@@ -219,17 +241,31 @@ def main(output_dir: Path, config: dict[str, Any]) -> None:
                     config=config,
                 )
             except Exception:
-                logger.exception(f"Failed to build polymer for monomer {monomer_smiles} (length: {length})")
+                logger.exception(
+                    f"Failed to build polymer for monomer {monomer_smiles} (length: {length})",
+                )
                 continue
-            polymers.append(Polymer(smiles=polymer_smiles, monomer_smiles=monomer_smiles, length=length))
+            polymers.append(
+                Polymer(
+                    smiles=polymer_smiles,
+                    monomer_smiles=monomer_smiles,
+                    length=length,
+                ),
+            )
 
         polymer_results: list[tuple[int, MolResults]] = []
-        for polymer in tqdm(polymers, desc="Running pipeline for each polymer length", leave=False):
+        for polymer in tqdm(
+            polymers,
+            desc="Running pipeline for each polymer length",
+            leave=False,
+        ):
             try:
                 result = run_pipeline(polymer, output_dir, config)
                 polymer_results.append((polymer.length, result))
             except Exception:
-                logger.exception(f"Failed to run pipeline for polymer {monomer_smiles} (length: {polymer.length})")
+                logger.exception(
+                    f"Failed to run pipeline for polymer {monomer_smiles} (length: {polymer.length})",
+                )
                 continue
 
         compile_results(

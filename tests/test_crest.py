@@ -8,8 +8,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from larest.constants import CALMOL_TO_JMOL
-from larest.crest import parse_crest_entropy_output, run_crest_confgen, run_crest_entropy
-
+from larest.crest import (
+    parse_crest_entropy_output,
+    run_crest_confgen,
+    run_crest_entropy,
+)
 
 # Expected values from tests/data/crest_entropy_output.txt
 _S_CONF_CALMOL = 12.3456
@@ -20,15 +23,24 @@ _S_TOTAL_CALMOL = 18.0245
 class TestParseCrestEntropyOutput:
     def test_parses_s_conf(self, crest_entropy_output_file):
         result = parse_crest_entropy_output(crest_entropy_output_file)
-        assert result["S_conf"] == pytest.approx(_S_CONF_CALMOL * CALMOL_TO_JMOL, rel=1e-5)
+        assert result["S_conf"] == pytest.approx(
+            _S_CONF_CALMOL * CALMOL_TO_JMOL,
+            rel=1e-5,
+        )
 
     def test_parses_s_rrho(self, crest_entropy_output_file):
         result = parse_crest_entropy_output(crest_entropy_output_file)
-        assert result["S_rrho"] == pytest.approx(_S_RRHO_CALMOL * CALMOL_TO_JMOL, rel=1e-5)
+        assert result["S_rrho"] == pytest.approx(
+            _S_RRHO_CALMOL * CALMOL_TO_JMOL,
+            rel=1e-5,
+        )
 
     def test_parses_s_total(self, crest_entropy_output_file):
         result = parse_crest_entropy_output(crest_entropy_output_file)
-        assert result["S_total"] == pytest.approx(_S_TOTAL_CALMOL * CALMOL_TO_JMOL, rel=1e-5)
+        assert result["S_total"] == pytest.approx(
+            _S_TOTAL_CALMOL * CALMOL_TO_JMOL,
+            rel=1e-5,
+        )
 
     def test_returns_none_for_missing(self, tmp_path):
         empty = tmp_path / "empty.txt"
@@ -89,7 +101,7 @@ class TestRunCrestConfgenMocked:
 
     def test_raises_when_no_rdkit_results(self, tmp_path, minimal_config):
         # No checkpoint files present
-        with pytest.raises(Exception):
+        with pytest.raises(FileNotFoundError):
             run_crest_confgen(tmp_path, minimal_config)
 
 
@@ -104,14 +116,14 @@ class TestRunCrestEntropyMocked:
             "part0 -0.12 -0.11 x\n  Highest ranked conformer CONF1\n"
             "part1 -0.22 -0.21 x\n  Highest ranked conformer CONF1\n"
             "part2 -0.32 -0.31 x\n  Highest ranked conformer CONF1\n"
-            "part3 -0.42 -0.41 x\n  Highest ranked conformer CONF1\n"
+            "part3 -0.42 -0.41 x\n  Highest ranked conformer CONF1\n",
         )
 
         # 3_REFINEMENT.xyz with CONF1
         xyz = censo_dir / "3_REFINEMENT.xyz"
         xyz.write_text(
             "3\nCONF1 energy= -0.12345\n"
-            "O   0.0 0.0 0.0\nH   1.0 0.0 0.0\nH   0.0 1.0 0.0\n"
+            "O   0.0 0.0 0.0\nH   1.0 0.0 0.0\nH   0.0 1.0 0.0\n",
         )
 
     def test_runs_crest_entropy(self, tmp_path, minimal_config):

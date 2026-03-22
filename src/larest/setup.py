@@ -50,7 +50,10 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return result
 
 
-def _apply_parallelisation(config: dict[str, Any], user_config: dict[str, Any]) -> dict[str, Any]:
+def _apply_parallelisation(
+    config: dict[str, Any],
+    user_config: dict[str, Any],
+) -> dict[str, Any]:
     n_cores = config.get("parallelisation", {}).get("n_cores")
     if n_cores is None:
         return config
@@ -105,14 +108,19 @@ def get_config(config_file: Path) -> dict[str, Any]:
         with open(config_file, "rb") as fstream:
             user_config = tomllib.load(fstream)
     except Exception:
-        print(f"Failed to load config from {config_file}")
+        print(f"Failed to load config from {config_file}")  # noqa: T201
         raise
 
     config = _deep_merge(defaults, user_config)
     return _apply_parallelisation(config, user_config)
 
 
-def get_logger(output_dir: Path, config: dict[str, Any], verbose: bool = False) -> None:
+def get_logger(
+    output_dir: Path,
+    config: dict[str, Any],
+    *,
+    verbose: bool = False,
+) -> None:
     """Configure the Python logging system from the ``[logging]`` config section.
 
     Deep-copies the logging sub-config before patching the file handler's
@@ -137,13 +145,13 @@ def get_logger(output_dir: Path, config: dict[str, Any], verbose: bool = False) 
     try:
         log_config: dict[str, Any] = copy.deepcopy(config["logging"])
         log_config["handlers"]["file"]["filename"] = str(
-            (output_dir / log_config["handlers"]["file"]["filename"]).resolve()
+            (output_dir / log_config["handlers"]["file"]["filename"]).resolve(),
         )
         if verbose:
             log_config["handlers"]["stream"]["level"] = "DEBUG"
         logging.config.dictConfig(log_config)
     except Exception:
-        print(f"Failed to setup logging config from {log_config}")
+        print(f"Failed to setup logging config from {log_config}")  # noqa: T201
         raise
 
 
@@ -175,7 +183,9 @@ def parse_command_args(sub_config: list[str], config: dict[str, Any]) -> list[st
         for key in sub_config:
             cfg = cfg[key]
     except KeyError:
-        logger.warning(f"Failed to find sub-config {sub_config} in config, using no arguments")
+        logger.warning(
+            f"Failed to find sub-config {sub_config} in config, using no arguments",
+        )
         return []
 
     args = []
@@ -187,4 +197,3 @@ def parse_command_args(sub_config: list[str], config: dict[str, Any]) -> list[st
             args.append(str(v))
     logger.debug(f"Returning {sub_config} args: {args}")
     return args
-

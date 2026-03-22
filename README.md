@@ -211,15 +211,24 @@ output/
 
 The `summary/` CSVs are the primary output, containing per-polymer-length reaction thermodynamics (ΔH, ΔS, ΔG in J/mol) at each level of theory. The `censo_corrected` section combines CENSO `censo_refinement` enthalpies with the CREST conformational entropy.
 
+## Development
+
+Install the dev dependencies (ruff, ty, pre-commit, pytest) and register the git hooks:
+
+```bash
+pip install -e ".[dev]"
+pre-commit install
+```
+
+Pre-commit will run ruff (lint + format) and ty (type checking) automatically on each commit. To run against all files manually:
+
+```bash
+pre-commit run --all-files
+```
+
 ## Testing
 
 The test suite lives in `tests/` and uses `pytest`. Tests are split into fast unit tests (no external tools required) and integration tests that exercise the `xtb` and `crest` binaries.
-
-First install `pytest` into the environment:
-
-```bash
-pip install pytest
-```
 
 **Unit tests only** (fast, no external tools needed):
 

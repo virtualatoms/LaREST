@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.cbook import get_sample_data
-from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 
 from larest.constants import (
     HARTTREE_TO_JMOL,

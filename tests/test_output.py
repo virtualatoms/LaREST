@@ -1,9 +1,5 @@
 """Tests for larest.output filesystem utilities."""
 
-from pathlib import Path
-
-import pytest
-
 from larest.output import create_dir, remove_dir, slugify
 
 

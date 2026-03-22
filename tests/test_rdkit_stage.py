@@ -28,7 +28,7 @@ class TestParseBestRdkitConformer:
         assert set(result.keys()) == {"conformer_id", "H", "S", "G"}
 
     def test_missing_file_raises(self, tmp_path):
-        with pytest.raises(Exception):
+        with pytest.raises(FileNotFoundError):
             parse_best_rdkit_conformer(tmp_path / "missing.csv")
 
 
@@ -40,7 +40,7 @@ class TestRunRdkitMocked:
         out = xtb_dir / f"conformer_{conformer_id}.txt"
         out.write_text(
             "         :: TOTAL ENTHALPY        -0.12345678 Eh           ::\n"
-            "         :: TOTAL FREE ENERGY     -0.12345000 Eh           ::\n"
+            "         :: TOTAL FREE ENERGY     -0.12345000 Eh           ::\n",
         )
         return out
 
@@ -74,7 +74,10 @@ class TestRunRdkitMocked:
         assert (tmp_path / "xtb" / "rdkit" / "results.csv").exists()
 
     def test_run_rdkit_invalid_smiles_raises(self, tmp_path, minimal_config):
-        with pytest.raises(Exception):
+        with pytest.raises(
+            ValueError,
+            match="Failed to create RDKit Mol object from SMILES",
+        ):
             run_rdkit("not_a_smiles!!!", tmp_path, minimal_config)
 
 

@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import subprocess
 import textwrap
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from larest.data import Initiator, MolResults, Monomer, Polymer
+from larest.data import MolResults, Monomer, Polymer
 from larest.main import compile_results, run_pipeline
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -30,8 +28,15 @@ _SECTIONS = [
 ]
 
 
-def _make_mol_results(smiles: str, h: float = -100000.0, s: float = -50.0, g: float = -115000.0):
-    sections = {section: {"H": h, "S": s, "G": g} for section in _SECTIONS}
+def _make_mol_results(
+    smiles: str,
+    h: float = -100000.0,
+    s: float = -50.0,
+    g: float = -115000.0,
+):
+    sections: dict[str, dict[str, float | None]] = {
+        section: {"H": h, "S": s, "G": g} for section in _SECTIONS
+    }
     return MolResults(smiles=smiles, sections=sections)
 
 
@@ -43,7 +48,17 @@ def _make_mol_results(smiles: str, h: float = -100000.0, s: float = -50.0, g: fl
 class TestCompileResults:
     def test_creates_summary_directory(self, tmp_path):
         monomer_results = _make_mol_results(_MONOMER_SMILES)
-        polymer_results = [(2, _make_mol_results("OCC(=O)OCC(=O)O", h=-200000.0, s=-100.0, g=-230000.0))]
+        polymer_results = [
+            (
+                2,
+                _make_mol_results(
+                    "OCC(=O)OCC(=O)O",
+                    h=-200000.0,
+                    s=-100.0,
+                    g=-230000.0,
+                ),
+            ),
+        ]
 
         compile_results(
             monomer_smiles=_MONOMER_SMILES,
@@ -61,7 +76,17 @@ class TestCompileResults:
 
     def test_creates_csv_per_section(self, tmp_path):
         monomer_results = _make_mol_results(_MONOMER_SMILES)
-        polymer_results = [(2, _make_mol_results("OCC(=O)OCC(=O)O", h=-200000.0, s=-100.0, g=-230000.0))]
+        polymer_results = [
+            (
+                2,
+                _make_mol_results(
+                    "OCC(=O)OCC(=O)O",
+                    h=-200000.0,
+                    s=-100.0,
+                    g=-230000.0,
+                ),
+            ),
+        ]
 
         compile_results(
             monomer_smiles=_MONOMER_SMILES,
@@ -80,9 +105,16 @@ class TestCompileResults:
 
     def test_delta_computation_rer(self, tmp_path):
         """delta_param = (poly - n * mono - 0) / n"""
-        monomer_results = _make_mol_results(_MONOMER_SMILES, h=-100000.0, s=-50.0, g=-115000.0)
+        monomer_results = _make_mol_results(
+            _MONOMER_SMILES,
+            h=-100000.0,
+            s=-50.0,
+            g=-115000.0,
+        )
         n = 2
-        polymer_results = [(n, _make_mol_results("P", h=-210000.0, s=-105.0, g=-241500.0))]
+        polymer_results = [
+            (n, _make_mol_results("P", h=-210000.0, s=-105.0, g=-241500.0)),
+        ]
 
         compile_results(
             monomer_smiles=_MONOMER_SMILES,
@@ -94,6 +126,7 @@ class TestCompileResults:
         )
 
         import pandas as pd
+
         from larest.output import slugify
 
         summary_dir = tmp_path / "Monomer" / slugify(_MONOMER_SMILES) / "summary"
@@ -118,10 +151,22 @@ class TestCompileResults:
             )
 
     def test_ror_includes_initiator_in_delta(self, tmp_path):
-        monomer_results = _make_mol_results(_MONOMER_SMILES, h=-100000.0, s=-50.0, g=-115000.0)
-        initiator_results = _make_mol_results(_INITIATOR_SMILES, h=-50000.0, s=-30.0, g=-59000.0)
+        monomer_results = _make_mol_results(
+            _MONOMER_SMILES,
+            h=-100000.0,
+            s=-50.0,
+            g=-115000.0,
+        )
+        initiator_results = _make_mol_results(
+            _INITIATOR_SMILES,
+            h=-50000.0,
+            s=-30.0,
+            g=-59000.0,
+        )
         n = 1
-        polymer_results = [(n, _make_mol_results("P", h=-160000.0, s=-85.0, g=-180000.0))]
+        polymer_results = [
+            (n, _make_mol_results("P", h=-160000.0, s=-85.0, g=-180000.0)),
+        ]
 
         compile_results(
             monomer_smiles=_MONOMER_SMILES,
@@ -133,6 +178,7 @@ class TestCompileResults:
         )
 
         import pandas as pd
+
         from larest.output import slugify
 
         summary_dir = tmp_path / "Monomer" / slugify(_MONOMER_SMILES) / "summary"
@@ -160,6 +206,7 @@ class TestCompileResults:
         )
 
         import pandas as pd
+
         from larest.output import slugify
 
         summary_dir = tmp_path / "Monomer" / slugify(_MONOMER_SMILES) / "summary"
@@ -193,10 +240,21 @@ class TestRunPipelineMocked:
                 "precision": 6,
                 "n_cores": 1,
             },
-            "xtb": {"parallel": 1, "gfn": 2, "ohess": "vtight", "alpb": "toluene", "etemp": 298.15},
+            "xtb": {
+                "parallel": 1,
+                "gfn": 2,
+                "ohess": "vtight",
+                "alpb": "toluene",
+                "etemp": 298.15,
+            },
             "crest": {"confgen": {}, "entropy": {}},
             "censo": {"cli": {}, "general": {"temperature": 298.15}},
-            "reaction": {"type": "RER", "lengths": [2], "initiator": "", "monomers": [_MONOMER_SMILES]},
+            "reaction": {
+                "type": "RER",
+                "lengths": [2],
+                "initiator": "",
+                "monomers": [_MONOMER_SMILES],
+            },
         }
 
     def _mol_dir(self, tmp_path, mol):
@@ -243,7 +301,11 @@ class TestRunPipelineMocked:
     def test_run_pipeline_polymer_dir_name(self, tmp_path):
         config = self._make_config()
         fake_rdkit = {"rdkit": {"H": -100000.0, "S": -50.0, "G": -115000.0}}
-        polymer = Polymer(smiles="OCC(=O)OCC(=O)O", monomer_smiles=_MONOMER_SMILES, length=2)
+        polymer = Polymer(
+            smiles="OCC(=O)OCC(=O)O",
+            monomer_smiles=_MONOMER_SMILES,
+            length=2,
+        )
         expected_dir = self._mol_dir(tmp_path, polymer)
 
         with patch("larest.main.run_rdkit", return_value=fake_rdkit):
@@ -301,6 +363,7 @@ class TestCLIIntegration:
             ["larest", str(config_file), "-o", str(output_dir)],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0, result.stderr
 

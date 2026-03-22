@@ -50,7 +50,9 @@ def create_censorc(config: dict[str, Any], temp_dir: Path) -> None:
     with open(censorc_file, "w") as fstream:
         for header, sub_config in censo_config.items():
             fstream.write(f"[{header}]\n")
-            fstream.writelines(f"{key} = {value}\n" for key, value in sub_config.items())
+            fstream.writelines(
+                f"{key} = {value}\n" for key, value in sub_config.items()
+            )
             fstream.write("\n")
     logger.debug(f"Created censo config file at {censorc_file}")
 
@@ -106,7 +108,8 @@ def run_censo(
         str(crest_conformers_file.absolute()),
         "--inprc",
         str(censo_config_file.absolute()),
-    ] + parse_command_args(sub_config=["censo", "cli"], config=config)
+        *parse_command_args(sub_config=["censo", "cli"], config=config),
+    ]
 
     with open(censo_output_file, "w") as fstream:
         subprocess.run(
@@ -222,9 +225,7 @@ def parse_best_censo_conformers(
         for i, line in enumerate(fstream):
             if "Highest ranked conformer" in line:
                 try:
-                    best_censo_conformers[CENSO_SECTIONS[section_no]] = (
-                        line.split()[-1]
-                    )
+                    best_censo_conformers[CENSO_SECTIONS[section_no]] = line.split()[-1]
                 except Exception:
                     logger.exception(
                         f"Failed to extract best conformer from line {i}: {line}",

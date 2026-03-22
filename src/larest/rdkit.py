@@ -9,12 +9,16 @@ from __future__ import annotations
 
 import logging
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
-from rdkit.Chem.AllChem import MMFFGetMoleculeForceField, MMFFGetMoleculeProperties
+from rdkit.Chem.AllChem import (
+    MMFFGetMoleculeForceField,  # type: ignore[attr-defined]
+    MMFFGetMoleculeProperties,  # type: ignore[attr-defined]
+)
 from rdkit.Chem.MolStandardize.rdMolStandardize import StandardizeSmiles
 from rdkit.Chem.rdDistGeom import EmbedMultipleConfs
 from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMoleculeConfs
@@ -74,7 +78,7 @@ def run_rdkit(
 
     n_conformers: int = config["rdkit"]["n_conformers"]
     logger.debug(f"Generating {n_conformers} conformers")
-    conformer_ids: list[int] = EmbedMultipleConfs(
+    conformer_ids: Sequence[int] = EmbedMultipleConfs(
         rdkit_mol,
         n_conformers,
         useRandomCoords=True,
@@ -103,7 +107,11 @@ def run_rdkit(
         [
             (
                 conformer_id,
-                MMFFGetMoleculeForceField(rdkit_mol, mp, confId=conformer_id).CalcEnergy()
+                MMFFGetMoleculeForceField(
+                    rdkit_mol,
+                    mp,
+                    confId=conformer_id,
+                ).CalcEnergy()
                 * KCALMOL_TO_JMOL,
             )
             for conformer_id in conformer_ids
@@ -160,7 +168,8 @@ def run_rdkit(
                 str(conformer_xyz_file.absolute()),
                 "--namespace",
                 f"conformer_{conformer_id}",
-            ] + xtb_default_args
+                *xtb_default_args,
+            ]
 
             try:
                 with open(xtb_output_file, "w") as fstream:

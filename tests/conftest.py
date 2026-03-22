@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-
 DATA_DIR = Path(__file__).parent / "data"
 
 
@@ -39,7 +38,7 @@ def pytest_collection_modifyitems(config, items):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def minimal_config():
     """Minimal pipeline config for unit tests (no external tools needed)."""
     return {
@@ -123,7 +122,7 @@ def minimal_config():
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def ror_config(minimal_config):
     """Minimal ROR config variant."""
     cfg = {**minimal_config}
@@ -136,31 +135,31 @@ def ror_config(minimal_config):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def data_dir():
     return DATA_DIR
 
 
-@pytest.fixture()
+@pytest.fixture
 def xtb_output_file():
     return DATA_DIR / "xtb_output.txt"
 
 
-@pytest.fixture()
+@pytest.fixture
 def crest_entropy_output_file():
     return DATA_DIR / "crest_entropy_output.txt"
 
 
-@pytest.fixture()
+@pytest.fixture
 def rdkit_results_file():
     return DATA_DIR / "rdkit_results.csv"
 
 
-@pytest.fixture()
+@pytest.fixture
 def censo_output_file():
     return DATA_DIR / "censo_output.txt"
 
 
-@pytest.fixture()
+@pytest.fixture
 def censo_conformers_xyz_file():
     return DATA_DIR / "censo_conformers.xyz"
