@@ -233,21 +233,6 @@ pytest tests/
 pytest tests/ --integration
 ```
 
-Test modules and what they cover:
-
-| Module | Coverage |
-|---|---|
-| `test_data.py` | `Monomer`, `Polymer`, `Initiator`, `MolResults` dataclasses |
-| `test_output.py` | `slugify`, `create_dir`, `remove_dir` |
-| `test_setup.py` | Config loading, deep-merge, parallelisation propagation, `parse_command_args` |
-| `test_chem.py` | SMILES parsing, ring-size detection, polymer construction (RER and ROR) |
-| `test_xtb.py` | xTB output parsing and `run_xtb` (mocked + integration) |
-| `test_crest.py` | CREST entropy output parsing, `run_crest_confgen`, `run_crest_entropy` (mocked + integration) |
-| `test_censo.py` | CENSO output parsing, conformer extraction, `.censo2rc` creation (no ORCA required) |
-| `test_checkpoint.py` | `PipelineStage` ordering, `restore_results`, `apply_entropy_correction` |
-| `test_rdkit_stage.py` | `parse_best_rdkit_conformer`, `run_rdkit` (mocked + integration) |
-| `test_main.py` | `compile_results` delta calculations, `run_pipeline` orchestration |
-
 ## Tested versions
 
 Dependency | Version

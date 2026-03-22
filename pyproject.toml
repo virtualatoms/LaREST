@@ -40,6 +40,9 @@ docs = [
     "furo",
     "myst-parser",
 ]
+tests = [
+    "pytest",
+]
 
 [project.scripts]
 larest = "larest.cli:entry_point"
