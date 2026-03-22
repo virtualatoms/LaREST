@@ -13,9 +13,10 @@ git clone https://github.com/Ryan-Reese/LaREST.git
 cd LaREST
 conda env create -f env.yaml
 conda activate larest
+pip install .
 ```
 
-This installs xTB, CREST, and the `larest` Python package (plus all Python dependencies) into the `larest` conda environment.
+This installs xTB and CREST (via conda) and the `larest` Python package (via pip) into the `larest` conda environment.
 
 ## Development setup
 
